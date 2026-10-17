@@ -80,10 +80,13 @@ RENKLER = {
 
 
 
+
 def renk_bul(resim):
+    import numpy as np
+    import colorsys
+
     resim = resim.convert("RGB")
 
-    # Kıyafetleri arka plandan ayıran modeli çalıştır.
     model = segmentasyon_modeli_yukle()
     bolgeler = model(resim)
 
@@ -99,45 +102,85 @@ def renk_bul(resim):
         "Scarf"
     }
 
-    kiyafet_pikselleri = []
+    pikseller = np.array(resim)
+    secilen_maskeler = []
 
-    # Yalnızca kıyafet olarak algılanan bölgelerin
-    # piksellerini renk hesabına dahil et.
     for bolge in bolgeler:
         if bolge["label"] not in kiyafet_siniflari:
             continue
 
-        maske = bolge["mask"].convert("L")
-        maske = maske.resize(resim.size)
+        maske = bolge["mask"].convert("L").resize(resim.size)
+        maske = np.array(maske) > 127
+        secilen_maskeler.append(maske)
 
-        maske_pikselleri = list(maske.getdata())
-        resim_pikselleri = list(resim.getdata())
-
-        for piksel, maske_degeri in zip(
-            resim_pikselleri, maske_pikselleri
-        ):
-            if maske_degeri > 127:
-                kiyafet_pikselleri.append(piksel)
-
-    if not kiyafet_pikselleri:
+    if not secilen_maskeler:
         return "Belirlenemedi"
 
-    # Kıyafet piksellerinin baskın rengini hesapla.
-    gruplar = Counter(
-        (r // 32, g // 32, b // 32)
-        for r, g, b in kiyafet_pikselleri
-    )
+    maske = np.logical_or.reduce(secilen_maskeler)
 
-    baskin_grup = max(gruplar, key=gruplar.get)
-    baskin_rgb = tuple(v * 32 + 16 for v in baskin_grup)
+    # Beyaz ve çok açık arka plan piksellerini dışarıda bırakmak
+    # için değil, yalnızca modelin kıyafet maskesini kullanıyoruz.
+    rgb_pikseller = pikseller[maske]
 
-    return min(
-        RENKLER,
-        key=lambda ad: sum(
-            (RENKLER[ad][i] - baskin_rgb[i]) ** 2
-            for i in range(3)
-        )
-    )
+    if len(rgb_pikseller) == 0:
+        return "Belirlenemedi"
+
+    # Çok fazla piksel varsa rastgele olmayan aralıklı örnekleme.
+    rgb_pikseller = rgb_pikseller[::max(1, len(rgb_pikseller) // 5000)]
+
+    hsv_pikseller = [
+        colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+        for r, g, b in rgb_pikseller
+    ]
+
+    # Çok koyu pikselleri siyah; düşük doygunluklu olanları
+    # gri/beyaz olarak değerlendir.
+    ortalama_v = np.median([hsv[2] for hsv in hsv_pikseller])
+    ortalama_s = np.median([hsv[1] for hsv in hsv_pikseller])
+
+    if ortalama_v < 0.16:
+        return "Siyah"
+
+    if ortalama_s < 0.12:
+        if ortalama_v > 0.82:
+            return "Beyaz"
+        if ortalama_v < 0.35:
+            return "Gri"
+        return "Gri"
+
+    # Doygun renklerde en sık görülen tonu bul.
+    renkli = [
+        hsv for hsv in hsv_pikseller
+        if hsv[1] >= 0.12 and hsv[2] >= 0.16
+    ]
+
+    if not renkli:
+        return "Gri"
+
+    tonlar = [hsv[0] for hsv in renkli]
+    ton = float(np.median(tonlar))
+    doygunluk = float(np.median([hsv[1] for hsv in renkli]))
+    parlaklik = float(np.median([hsv[2] for hsv in renkli]))
+
+    if ton < 0.04 or ton >= 0.96:
+        return "Kırmızı"
+    if ton < 0.10:
+        return "Turuncu"
+    if ton < 0.17:
+        return "Sarı"
+    if ton < 0.45:
+        return "Yeşil"
+    if ton < 0.57:
+        return "Mavi"
+    if ton < 0.72:
+        return "Lacivert" if parlaklik < 0.55 else "Mavi"
+    if ton < 0.82:
+        return "Mor"
+    if ton < 0.94:
+        return "Pembe"
+
+    return "Mavi"
+
 
 
 st.divider()
