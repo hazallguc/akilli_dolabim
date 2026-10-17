@@ -16,6 +16,15 @@ st.subheader("Yapay zekâ destekli kombin asistanın")
 st.write("Kıyafetlerini yükle, analiz et ve kombin önerilerini keşfet!")
 
 @st.cache_resource
+def segmentasyon_modeli_yukle():
+    from transformers import pipeline
+    return pipeline(
+        "image-segmentation",
+        model="mattmdjaga/segformer_b2_clothes",
+        device=-1
+    )
+
+@st.cache_resource
 def model_yukle():
     return pipeline(
         "zero-shot-image-classification",
