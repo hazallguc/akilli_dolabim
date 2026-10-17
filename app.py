@@ -79,47 +79,58 @@ RENKLER = {
 }
 
 
+
 def renk_bul(resim):
-    # Görselin orta bölümünü alarak kenarlardaki
-    # arka plan etkisini azalt.
     resim = resim.convert("RGB")
-    genislik, yukseklik = resim.size
 
-    sol = int(genislik * 0.20)
-    ust = int(yukseklik * 0.20)
-    sag = int(genislik * 0.80)
-    alt = int(yukseklik * 0.80)
+    # Kıyafetleri arka plandan ayıran modeli çalıştır.
+    model = segmentasyon_modeli_yukle()
+    bolgeler = model(resim)
 
-    kirpilan = resim.crop((sol, ust, sag, alt))
-    kirpilan.thumbnail((100, 100))
+    kiyafet_siniflari = {
+        "Upper-clothes",
+        "Skirt",
+        "Pants",
+        "Dress",
+        "Belt",
+        "Left-shoe",
+        "Right-shoe",
+        "Bag",
+        "Scarf"
+    }
 
-    pikseller = list(kirpilan.getdata())
+    kiyafet_pikselleri = []
 
-    # Beyaza yakın, düşük renk farklılığına sahip
-    # pikselleri arka plan olabilecekleri için çıkar.
-    filtrelenmis = [
-        (r, g, b)
-        for r, g, b in pikseller
-        if not (
-            min(r, g, b) > 205
-            and max(r, g, b) - min(r, g, b) < 25
-        )
-    ]
+    # Yalnızca kıyafet olarak algılanan bölgelerin
+    # piksellerini renk hesabına dahil et.
+    for bolge in bolgeler:
+        if bolge["label"] not in kiyafet_siniflari:
+            continue
 
-    # Görselin çoğu beyazsa boş listeyle kalma.
-    if len(filtrelenmis) < len(pikseller) * 0.20:
-        filtrelenmis = pikseller
+        maske = bolge["mask"].convert("L")
+        maske = maske.resize(resim.size)
 
-    # Benzer RGB değerlerini gruplandır.
+        maske_pikselleri = list(maske.getdata())
+        resim_pikselleri = list(resim.getdata())
+
+        for piksel, maske_degeri in zip(
+            resim_pikselleri, maske_pikselleri
+        ):
+            if maske_degeri > 127:
+                kiyafet_pikselleri.append(piksel)
+
+    if not kiyafet_pikselleri:
+        return "Belirlenemedi"
+
+    # Kıyafet piksellerinin baskın rengini hesapla.
     gruplar = Counter(
         (r // 32, g // 32, b // 32)
-        for r, g, b in filtrelenmis
+        for r, g, b in kiyafet_pikselleri
     )
 
     baskin_grup = max(gruplar, key=gruplar.get)
     baskin_rgb = tuple(v * 32 + 16 for v in baskin_grup)
 
-    # Bulunan rengi en yakın renk adına eşleştir.
     return min(
         RENKLER,
         key=lambda ad: sum(
@@ -127,6 +138,7 @@ def renk_bul(resim):
             for i in range(3)
         )
     )
+
 
 st.divider()
 st.header("📸 Dijital dolabını oluştur")
