@@ -14,6 +14,48 @@ st.set_page_config(
 )
 
 st.title("👗 Akıllı Dolabım")
+import base64
+
+DOLAP_DOSYASI = "dolap.json"
+
+
+def dolabi_kaydet(dolap):
+    kayitlar = []
+
+    for kiyafet in dolap:
+        tampon = io.BytesIO()
+        kiyafet["resim"].save(tampon, format="JPEG")
+
+        kayitlar.append({
+            "isim": kiyafet["isim"],
+            "tur": kiyafet["tur"],
+            "renk": kiyafet["renk"],
+            "guven": float(kiyafet["guven"]),
+            "resim": base64.b64encode(tampon.getvalue()).decode("utf-8")
+        })
+
+    with open(DOLAP_DOSYASI, "w", encoding="utf-8") as dosya:
+        json.dump(kayitlar, dosya, ensure_ascii=False)
+
+
+def dolabi_yukle():
+    if not os.path.exists(DOLAP_DOSYASI):
+        return []
+
+    try:
+        with open(DOLAP_DOSYASI, "r", encoding="utf-8") as dosya:
+            kayitlar = json.load(dosya)
+
+        for kiyafet in kayitlar:
+            resim_bytes = base64.b64decode(kiyafet["resim"])
+            kiyafet["resim"] = Image.open(
+                io.BytesIO(resim_bytes)
+            ).convert("RGB")
+
+        return kayitlar
+
+    except Exception:
+        return []
 st.subheader("Yapay zekâ destekli kombin asistanın")
 st.write("Kıyafetlerini yükle, analiz et ve kombin önerilerini keşfet!")
 
@@ -230,9 +272,9 @@ if fotograflar:
                         "renk": renk,
                         "guven": en_iyi["score"]
                     })
-
-            st.session_state["dolap"] = dolap
-            st.success("Analiz tamamlandı!")
+         st.session_state["dolap"] = dolap
+         dolabi_kaydet(dolap)
+         st.success("Analiz tamamlandı!")
 
         except Exception as hata:
             st.error("Model çalışırken bir sorun oluştu.")
