@@ -69,20 +69,52 @@ RENKLER = {
     "Turuncu": (235, 120, 30)
 }
 
+
 def renk_bul(resim):
-    kucuk = resim.copy().convert("RGB")
-    kucuk.thumbnail((100, 100))
-    renkler = kucuk.quantize(
-        colors=8
-    ).convert("RGB").getcolors(10000)
+    # Görselin orta bölümünü alarak kenarlardaki
+    # arka plan etkisini azalt.
+    resim = resim.convert("RGB")
+    genislik, yukseklik = resim.size
 
-    baskin = max(renkler, key=lambda x: x[0])[1]
-    r, g, b = baskin
+    sol = int(genislik * 0.20)
+    ust = int(yukseklik * 0.20)
+    sag = int(genislik * 0.80)
+    alt = int(yukseklik * 0.80)
 
+    kirpilan = resim.crop((sol, ust, sag, alt))
+    kirpilan.thumbnail((100, 100))
+
+    pikseller = list(kirpilan.getdata())
+
+    # Beyaza yakın, düşük renk farklılığına sahip
+    # pikselleri arka plan olabilecekleri için çıkar.
+    filtrelenmis = [
+        (r, g, b)
+        for r, g, b in pikseller
+        if not (
+            min(r, g, b) > 205
+            and max(r, g, b) - min(r, g, b) < 25
+        )
+    ]
+
+    # Görselin çoğu beyazsa boş listeyle kalma.
+    if len(filtrelenmis) < len(pikseller) * 0.20:
+        filtrelenmis = pikseller
+
+    # Benzer RGB değerlerini gruplandır.
+    gruplar = Counter(
+        (r // 32, g // 32, b // 32)
+        for r, g, b in filtrelenmis
+    )
+
+    baskin_grup = max(gruplar, key=gruplar.get)
+    baskin_rgb = tuple(v * 32 + 16 for v in baskin_grup)
+
+    # Bulunan rengi en yakın renk adına eşleştir.
     return min(
         RENKLER,
         key=lambda ad: sum(
-            (RENKLER[ad][i] - [r, g, b][i]) ** 2
+            (RENKLER[ad][i] - baskin_rgb[i]) ** 2
             for i in range(3)
         )
     )
