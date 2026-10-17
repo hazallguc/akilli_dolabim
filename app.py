@@ -2,7 +2,6 @@
 import streamlit as st
 from PIL import Image
 from transformers import pipeline
-from collections import Counter
 import io
 import json
 import os
@@ -16,7 +15,7 @@ st.set_page_config(
 
 st.title("👗 Akıllı Dolabım")
 st.subheader("Yapay zekâ destekli kombin asistanın")
-st.write("Kıyafetlerini yükle, analiz et ve kombin önerilerini keş!")
+st.write("Kıyafetlerini yükle, analiz et ve kombin önerilerini keşfet!")
 
 DOLAP_DOSYASI = "dolap.json"
 
@@ -31,9 +30,7 @@ def dolabi_kaydet(dolap):
     for kiyafet in dolap:
         tampon = io.BytesIO()
         kiyafet["resim"].convert("RGB").save(
-            tampon,
-            format="JPEG",
-            quality=85
+            tampon, format="JPEG", quality=85
         )
 
         kayitlar.append({
@@ -122,6 +119,7 @@ TUR_CEVIRI = {
     "a photo of jeans": "Kot pantolon",
     "a photo of a skirt": "Etek",
     "a photo of a dress": "Elbise",
+    "a photo of a shorts": "Şort",
     "a photo of shorts": "Şort",
     "a photo of sneakers": "Spor ayakkabı",
     "a photo of shoes": "Ayakkabı"
@@ -129,46 +127,19 @@ TUR_CEVIRI = {
 
 
 # -----------------------------
-# RENK TAHMİNİ
+# KIYAFET RENGİNİ BUL
 # -----------------------------
-
-RENKLER = {
-    "Siyah": (0, 0, 0),
-    "Beyaz": (255, 255, 255),
-    "Gri": (128, 128, 128),
-    "Kırmızı": (220, 30, 30),
-    "Mavi": (35, 90, 190),
-    "Lacivert": (20, 35, 90),
-    "Yeşil": (30, 130, 60),
-    "Sarı": (240, 210, 40),
-    "Pembe": (240, 140, 180),
-    "Mor": (130, 70, 160),
-    "Kahverengi": (120, 75, 40),
-    "Bej": (210, 190, 150),
-    "Turuncu": (235, 120, 30)
-}
-
-
 
 def renk_bul(resim):
     import numpy as np
     import colorsys
 
     resim = resim.convert("RGB")
-
-    model = segmentasyon_modeli_yukle()
-    bolgeler = model(resim)
+    bolgeler = segmentasyon_modeli_yukle()(resim)
 
     kiyafet_siniflari = {
-        "Upper-clothes",
-        "Skirt",
-        "Pants",
-        "Dress",
-        "Belt",
-        "Left-shoe",
-        "Right-shoe",
-        "Bag",
-        "Scarf"
+        "Upper-clothes", "Skirt", "Pants", "Dress",
+        "Belt", "Left-shoe", "Right-shoe", "Bag", "Scarf"
     }
 
     pikseller = np.array(resim)
@@ -190,7 +161,6 @@ def renk_bul(resim):
     if len(rgb) == 0:
         return "Belirlenemedi"
 
-    # Çok büyük görüntülerde işlem yükünü azalt.
     rgb = rgb[::max(1, len(rgb) // 10000)]
 
     hsv = np.array([
@@ -202,7 +172,6 @@ def renk_bul(resim):
     doygunluklar = hsv[:, 1]
     parlakliklar = hsv[:, 2]
 
-    # Aşırı koyu veya çok açık pikselleri ayır.
     if np.median(parlakliklar) < 0.22:
         return "Siyah"
 
@@ -212,15 +181,12 @@ def renk_bul(resim):
     )
 
     if np.mean(renkliler) < 0.15:
-        medyan_v = float(np.median(parlakliklar))
-        return "Beyaz" if medyan_v > 0.82 else "Gri"
+        return "Beyaz" if np.median(parlakliklar) > 0.82 else "Gri"
 
-    # Renkleri dairesel HSV ton aralığında sınıflandır.
     secilen_tonlar = tonlar[renkliler]
     secilen_s = doygunluklar[renkliler]
     secilen_v = parlakliklar[renkliler]
 
-    # Renk tonu aralıklarını belirle.
     ton = float(np.median(secilen_tonlar))
     sat = float(np.median(secilen_s))
     val = float(np.median(secilen_v))
@@ -232,16 +198,12 @@ def renk_bul(resim):
             return "Siyah"
         return "Gri"
 
-    # Yeşil aralığını mavi aralığından net ayır.
     if 0.18 <= ton < 0.43:
         return "Yeşil"
-
     if 0.43 <= ton < 0.55:
         return "Mavi"
-
     if 0.55 <= ton < 0.72:
         return "Lacivert" if val < 0.55 else "Mavi"
-
     if ton < 0.04 or ton >= 0.96:
         return "Kırmızı"
     if ton < 0.10:
@@ -257,7 +219,7 @@ def renk_bul(resim):
 
 
 # -----------------------------
-# UYGULAMA AÇILINCA DOLABI YÜKLE
+# DOLABI YÜKLE
 # -----------------------------
 
 if "dolap" not in st.session_state:
@@ -265,7 +227,7 @@ if "dolap" not in st.session_state:
 
 
 # -----------------------------
-# FOTOĞRAF YÜKLEME VE ANALİZ
+# FOTOĞRAF YÜKLE VE ANALİZ ET
 # -----------------------------
 
 st.divider()
@@ -280,28 +242,22 @@ fotograflar = st.file_uploader(
 
 if fotograflar:
     if len(fotograflar) > 12:
-        st.warning(
-            "İlk sürümde en fazla 12 fotoğraf yüklemeni öneriyorum."
-        )
+        st.warning("İlk sürümde en fazla 12 fotoğraf seçmeni öneriyorum.")
 
     if st.button("🤖 Kıyafetlerimi yapay zekâyla analiz et"):
         try:
-            with st.spinner(
-                "Yapay zekâ modelleri fotoğrafları analiz ediyor..."
-            ):
+            with st.spinner("Fotoğraflar analiz ediliyor..."):
                 model = model_yukle()
-
-                # Daha önce kaydedilmiş kıyafetleri koru.
                 dolap = st.session_state["dolap"]
+
                 mevcut_isimler = {
-                    parca["isim"] for parca in dolap
+                    p["isim"] for p in dolap
                 }
 
                 eklenen = 0
                 atlanan = 0
 
                 for fotograf in fotograflar[:12]:
-                    # Aynı isimdeki dosyayı ikinci kez ekleme.
                     if fotograf.name in mevcut_isimler:
                         atlanan += 1
                         continue
@@ -316,65 +272,64 @@ if fotograflar:
                     )
 
                     en_iyi = tahminler[0]
-                    tur = TUR_CEVIRI[en_iyi["label"]]
-                    renk = renk_bul(resim)
 
                     dolap.append({
                         "isim": fotograf.name,
                         "resim": resim,
-                        "tur": tur,
-                        "renk": renk,
+                        "tur": TUR_CEVIRI[en_iyi["label"]],
+                        "renk": renk_bul(resim),
                         "guven": float(en_iyi["score"])
                     })
 
                     mevcut_isimler.add(fotograf.name)
                     eklenen += 1
 
-            # Güncellenmiş dolabı oturumda tut ve dosyaya kaydet.
             st.session_state["dolap"] = dolap
             dolabi_kaydet(dolap)
 
-            st.success(
-                f"Analiz tamamlandı! {eklenen} yeni kıyafet eklendi."
-            )
+            st.success(f"{eklenen} yeni kıyafet eklendi.")
 
             if atlanan:
                 st.info(
-                    f"{atlanan} fotoğraf, aynı dosya adıyla "
-                    "dolapta zaten bulunduğu için eklenmedi."
+                    f"{atlanan} fotoğraf aynı dosya adına sahip "
+                    "olduğu için tekrar eklenmedi."
                 )
 
         except Exception as hata:
-            st.error("Model çalışırken bir sorun oluştu.")
+            st.error("Analiz sırasında bir hata oluştu.")
             st.caption(str(hata))
 
 
 # -----------------------------
-# DOLABI GÖSTER
+# DOLAPTAKİ KIYAFETLER VE SİLME
 # -----------------------------
 
 dolap = st.session_state["dolap"]
 
 if dolap:
     st.divider()
-    st.header("🧥 Yapay zekâ kıyafet analizleri")
-
-    st.write(f"Dolabındaki toplam kıyafet sayısı: **{len(dolap)}**")
+    st.header("🧥 Dolabımdaki kıyafetler")
+    st.write(f"Toplam kıyafet: **{len(dolap)}**")
 
     sutunlar = st.columns(3)
 
     for i, parca in enumerate(dolap):
         with sutunlar[i % 3]:
-            st.image(
-                parca["resim"],
-                use_container_width=True
-            )
+            st.image(parca["resim"], use_container_width=True)
             st.markdown(f"**{parca['isim']}**")
             st.write(f"Tür: {parca['tur']}")
-            st.write(f"Baskın renk: {parca['renk']}")
+            st.write(f"Renk: {parca['renk']}")
             st.caption(
                 f"Model tahmin puanı: %{parca['guven'] * 100:.1f}"
             )
+
+            if st.button(
+                "🗑️ Dolabımdan kaldır",
+                key=f"sil_{i}"
+            ):
+                st.session_state["dolap"].pop(i)
+                dolabi_kaydet(st.session_state["dolap"])
+                st.rerun()
 
     # -----------------------------
     # KOMBİN DANIŞMANI
@@ -382,39 +337,28 @@ if dolap:
 
     st.divider()
     st.header("👗 Akıllı Kombin Danışmanın")
-    st.write(
-        "Dolabındaki kıyafetleri tamamlayan renkleri, "
-        "aksesuarları ve alternatif stilleri keşfet!"
-    )
 
     ustler = [
         p for p in dolap
         if p["tur"] in [
-            "Tişört", "Gömlek", "Kazak",
-            "Ceket", "Mont / Kaban"
+            "Tişört", "Gömlek", "Kazak", "Ceket", "Mont / Kaban"
         ]
     ]
 
     altlar = [
         p for p in dolap
         if p["tur"] in [
-            "Pantolon", "Kot pantolon",
-            "Etek", "Şort"
+            "Pantolon", "Kot pantolon", "Etek", "Şort"
         ]
     ]
 
     elbiseler = [
-        p for p in dolap
-        if p["tur"] == "Elbise"
+        p for p in dolap if p["tur"] == "Elbise"
     ]
 
     ayakkabilar = [
         p for p in dolap
         if p["tur"] in ["Ayakkabı", "Spor ayakkabı"]
-    ]
-
-    ust_alternatifleri = [
-        "Beyaz", "Siyah", "Krem", "Gri", "Pembe", "Mavi"
     ]
 
     def kombin_aciklamasi(ust, alt):
@@ -423,79 +367,44 @@ if dolap:
 
         if ust_rengi == alt_rengi:
             renk_yorumu = (
-                f"{ust_rengi} üst ve {alt_rengi} alt parça "
-                "birbirine yakın, bütünlüklü bir görünüm oluşturur. "
-                "Farklı dokular ve aksesuarlarla kombine hareket katabilirsin."
+                f"{ust_rengi} üst ve {alt_rengi} alt benzer tonlarda "
+                "bütünlüklü bir görünüm oluşturur."
             )
         else:
             renk_yorumu = (
-                f"{ust_rengi} üst ile {alt_rengi} alt parçanın "
-                "kontrastını kullanabilirsin. Renklerden biri daha "
-                "belirginse diğer parçaları sade tutmak görünümü dengeler."
+                f"{ust_rengi} üst ile {alt_rengi} alt kontrast "
+                "oluşturabilir. Diğer parçaları sade tutabilirsin."
             )
 
-        if ust_rengi in [
-            "Siyah", "Beyaz", "Gri", "Bej", "Lacivert"
-        ]:
-            takı_yorumu = (
-                "Altın renkli küpe, ince kolye veya bileklik "
-                "kombine sıcaklık katabilir. Daha sade bir görünüm "
-                "için gümüş renkli takıları da deneyebilirsin."
-            )
-        else:
-            takı_yorumu = (
-                "Altın renkli küçük halka küpeler veya ince bir kolye "
-                "kombine sıcaklık katabilir. Minimal görünüm için "
-                "tek bir aksesuar seçebilirsin."
-            )
+        takilar = (
+            "Altın renkli takılar sıcak bir görünüm; gümüş renkli "
+            "takılar daha soğuk ve sade bir görünüm verebilir."
+        )
 
-        if alt_rengi in [
-            "Siyah", "Beyaz", "Gri", "Bej", "Lacivert"
-        ]:
-            ayakkabi_yorumu = (
-                "Kırmızı ayakkabı canlı bir vurgu ekleyebilir. "
-                "Daha sade bir alternatif olarak beyaz, siyah veya "
-                "bej ayakkabı tercih edebilirsin."
-            )
-        else:
-            ayakkabi_yorumu = (
-                "Beyaz veya siyah ayakkabı renk dengesini koruyabilir. "
-                "Daha iddialı bir görünüm için kırmızı ayakkabıyı "
-                "deneyebilirsin."
-            )
+        ayakkabi = (
+            "Beyaz veya siyah ayakkabı sade bir seçimdir. "
+            "Bej daha yumuşak, kırmızı daha dikkat çekici olabilir."
+        )
 
         canta = (
-            "Bej çanta yumuşak bir geçiş sağlar; siyah çanta klasik "
-            "bir görünüm verir. Beyaz çanta ise açık renkli kombinlere "
-            "ferahlık katar."
+            "Siyah çanta klasik, bej çanta yumuşak, beyaz çanta "
+            "ise ferah bir görünüm sağlayabilir."
         )
 
         alternatifler = [
-            renk for renk in ust_alternatifleri
-            if renk != ust_rengi
+            r for r in ["Beyaz", "Siyah", "Krem", "Gri", "Pembe", "Mavi"]
+            if r != ust_rengi
         ][:4]
-
-        ust_onerisi = (
-            f"Üst parçanın yerine {', '.join(alternatifler)} "
-            "renklerinde bir tişört deneyebilirsin. Beyaz daha ferah, "
-            "siyah daha güçlü, krem daha yumuşak bir görünüm verir."
-        )
-
-        stil = (
-            "Günlük kullanımda spor ayakkabı ve sade bir çanta; "
-            "daha şık bir ortamda zarif takılar ve klasik bir ayakkabı "
-            "tercih edebilirsin. Ceket eklemek kombini daha düzenli gösterir."
-        )
 
         return (
             f"**Renk uyumu:** {renk_yorumu}\n\n"
-            f"**Takı önerisi:** {takı_yorumu}\n\n"
-            f"**Ayakkabı seçenekleri:** {ayakkabi_yorumu}\n\n"
+            f"**Takı önerisi:** {takilar}\n\n"
+            f"**Ayakkabı önerisi:** {ayakkabi}\n\n"
             f"**Çanta önerisi:** {canta}\n\n"
-            f"**Alternatif tişörtler:** {ust_onerisi}\n\n"
-            f"**Stil önerisi:** {stil}\n\n"
-            "**Küçük ipucu:** Bu öneriler renk uyumuna dayalıdır. "
-            "Kumaş, desen, mevsim ve kişisel zevk de sonucu etkiler."
+            f"**Alternatif üst renkleri:** {', '.join(alternatifler)}\n\n"
+            "**Stil önerisi:** Günlük kullanımda spor ayakkabı; "
+            "daha şık bir ortamda zarif takılar ve klasik ayakkabı "
+            "tercih edebilirsin. Bu öneriler renk uyumuna dayalıdır."
         )
 
     kombin_sayisi = 0
@@ -517,38 +426,20 @@ if dolap:
                     kolonlar = st.columns(2)
 
                     with kolonlar[0]:
-                        st.image(
-                            ust["resim"],
-                            use_container_width=True
-                        )
-                        st.caption(
-                            f"{ust['tur']} — {ust['renk']}"
-                        )
+                        st.image(ust["resim"], use_container_width=True)
+                        st.caption(f"{ust['tur']} — {ust['renk']}")
 
                     with kolonlar[1]:
-                        st.image(
-                            alt["resim"],
-                            use_container_width=True
-                        )
-                        st.caption(
-                            f"{alt['tur']} — {alt['renk']}"
-                        )
+                        st.image(alt["resim"], use_container_width=True)
+                        st.caption(f"{alt['tur']} — {alt['renk']}")
 
-                    st.markdown(
-                        kombin_aciklamasi(ust, alt)
-                    )
+                    st.markdown(kombin_aciklamasi(ust, alt))
 
                     if ayakkabilar:
                         st.info(
                             "Dolabındaki ayakkabı: "
                             f"{ayakkabilar[0]['renk']} "
-                            f"{ayakkabilar[0]['tur']}. "
-                            "Bu parçayı da kombinle deneyebilirsin."
-                        )
-                    else:
-                        st.caption(
-                            "Dolabında ayakkabı fotoğrafı bulunmuyor. "
-                            "Önerilen ayakkabı renkleri örnektir."
+                            f"{ayakkabilar[0]['tur']}."
                         )
 
                 if kombin_sayisi >= 5:
@@ -560,51 +451,26 @@ if dolap:
     if kombin_sayisi == 0 and elbiseler:
         for elbise in elbiseler[:3]:
             st.subheader(
-                f"{elbise['renk']} {elbise['tur']} için öneriler"
+                f"{elbise['renk']} elbise için öneriler"
             )
-            st.image(
-                elbise["resim"],
-                width=240
-            )
-
+            st.image(elbise["resim"], width=240)
             st.markdown(
-                f"**Renk uyumu:** {elbise['renk']} elbiseni "
-                "tamamlayacak aksesuarları elbisenin tonuna ve "
-                "kullanacağın ortama göre seçebilirsin.\n\n"
-                "**Takı:** Altın renkli takılar sıcak, gümüş renkli "
-                "takılar daha soğuk bir görünüm verebilir.\n\n"
-                "**Ayakkabı:** Siyah, bej veya beyaz ayakkabıları "
-                "deneyebilirsin. Kırmızı ayakkabı dikkat çekici "
-                "bir vurgu oluşturabilir.\n\n"
-                "**Çanta:** Siyah veya bej çanta kolay eşleşen "
-                "seçeneklerdir.\n\n"
-                "**Alternatif:** Uygun bir ceket ekleyerek görünümü "
-                "günlük veya daha şık bir tarza uyarlayabilirsin."
+                "Siyah veya bej çanta deneyebilirsin. Altın renkli "
+                "takılar sıcak, gümüş renkli takılar daha soğuk "
+                "bir görünüm verebilir. Beyaz, siyah veya bej "
+                "ayakkabılar farklı stillere uyarlanabilir."
             )
 
-            if ayakkabilar:
-                st.write(
-                    "Dolabındaki ayakkabı: "
-                    f"{ayakkabilar[0]['renk']} "
-                    f"{ayakkabilar[0]['tur']}"
-                )
-
-            kombin_sayisi += 1
-
-    if kombin_sayisi == 0:
+    if kombin_sayisi == 0 and not elbiseler:
         st.info(
-            "Ayrıntılı kombin önerileri için en az bir üst ve "
-            "bir alt parça veya bir elbise yükleyip analiz et."
+            "Kombin önerileri için en az bir üst ve bir alt parça "
+            "veya bir elbise yükle."
         )
 
 else:
     st.info(
-        "Dolabın henüz boş. Kıyafet fotoğrafları yükleyip "
-        "analiz ederek başlayabilirsin."
+        "Dolabın boş. Fotoğraf yükleyerek kıyafet ekleyebilirsin."
     )
 
-
 st.divider()
-st.caption(
-    "Akıllı Dolabım | CLIP tabanlı ilk yapay zekâ prototipi"
-)
+st.caption("Akıllı Dolabım | CLIP tabanlı ilk yapay zekâ prototipi")
