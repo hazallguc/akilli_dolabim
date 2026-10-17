@@ -206,12 +206,41 @@ def renk_bul(resim):
         return "Lacivert" if val < 0.55 else "Mavi"
     if ton < 0.04 or ton >= 0.96:
         return "Kırmızı"
+    
+    if ton < 0.04 or ton >= 0.96:
+        return "Kırmızı"
+
+    if ton < 0.07:
+        return "Kahverengi" if val < 0.60 else "Kırmızı"
+
     if ton < 0.10:
-        return "Turuncu"
+        return "Turuncu" if val > 0.65 else "Kahverengi"
+
     if ton < 0.17:
+        if val < 0.65:
+            return "Kahverengi"
         return "Sarı"
+
+    if ton < 0.18:
+        return "Kahverengi" if val < 0.55 else "Sarı"
+
+    if ton < 0.43:
+        return "Yeşil"
+
+    if ton < 0.55:
+        return "Mavi"
+
+    if ton < 0.72:
+        return "Lacivert" if val < 0.55 else "Mavi"
+
     if ton < 0.82:
         return "Mor"
+
+    if ton < 0.94:
+        return "Pembe"
+
+    return "Kırmızı"
+
     if ton < 0.94:
         return "Pembe"
 
