@@ -4,6 +4,8 @@ from PIL import Image
 from transformers import pipeline
 from collections import Counter
 import io
+import json
+import os
 
 st.set_page_config(
     page_title="Akıllı Dolabım",
