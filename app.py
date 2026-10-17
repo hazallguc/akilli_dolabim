@@ -149,6 +149,7 @@ RENKLER = {
 }
 
 
+
 def renk_bul(resim):
     import numpy as np
     import colorsys
@@ -171,55 +172,75 @@ def renk_bul(resim):
     }
 
     pikseller = np.array(resim)
-    secilen_maskeler = []
+    maskeler = []
 
     for bolge in bolgeler:
         if bolge["label"] not in kiyafet_siniflari:
             continue
 
         maske = bolge["mask"].convert("L").resize(resim.size)
-        maske = np.array(maske) > 127
-        secilen_maskeler.append(maske)
+        maskeler.append(np.array(maske) > 127)
 
-    if not secilen_maskeler:
+    if not maskeler:
         return "Belirlenemedi"
 
-    maske = np.logical_or.reduce(secilen_maskeler)
-    rgb_pikseller = pikseller[maske]
+    maske = np.logical_or.reduce(maskeler)
+    rgb = pikseller[maske]
 
-    if len(rgb_pikseller) == 0:
+    if len(rgb) == 0:
         return "Belirlenemedi"
 
-    rgb_pikseller = rgb_pikseller[
-        ::max(1, len(rgb_pikseller) // 5000)
-    ]
+    # Çok büyük görüntülerde işlem yükünü azalt.
+    rgb = rgb[::max(1, len(rgb) // 10000)]
 
-    hsv_pikseller = [
+    hsv = np.array([
         colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
-        for r, g, b in rgb_pikseller
-    ]
+        for r, g, b in rgb
+    ])
 
-    ortalama_v = np.median([hsv[2] for hsv in hsv_pikseller])
-    ortalama_s = np.median([hsv[1] for hsv in hsv_pikseller])
+    tonlar = hsv[:, 0]
+    doygunluklar = hsv[:, 1]
+    parlakliklar = hsv[:, 2]
 
-    if ortalama_v < 0.25:
+    # Aşırı koyu veya çok açık pikselleri ayır.
+    if np.median(parlakliklar) < 0.22:
         return "Siyah"
 
-    if ortalama_s < 0.12:
-        if ortalama_v > 0.82:
+    renkliler = (
+        (doygunluklar > 0.20) &
+        (parlakliklar > 0.18)
+    )
+
+    if np.mean(renkliler) < 0.15:
+        medyan_v = float(np.median(parlakliklar))
+        return "Beyaz" if medyan_v > 0.82 else "Gri"
+
+    # Renkleri dairesel HSV ton aralığında sınıflandır.
+    secilen_tonlar = tonlar[renkliler]
+    secilen_s = doygunluklar[renkliler]
+    secilen_v = parlakliklar[renkliler]
+
+    # Renk tonu aralıklarını belirle.
+    ton = float(np.median(secilen_tonlar))
+    sat = float(np.median(secilen_s))
+    val = float(np.median(secilen_v))
+
+    if sat < 0.28:
+        if val > 0.82:
             return "Beyaz"
+        if val < 0.35:
+            return "Siyah"
         return "Gri"
 
-    renkli = [
-        hsv for hsv in hsv_pikseller
-        if hsv[1] >= 0.12 and hsv[2] >= 0.16
-    ]
+    # Yeşil aralığını mavi aralığından net ayır.
+    if 0.18 <= ton < 0.43:
+        return "Yeşil"
 
-    if not renkli:
-        return "Gri"
+    if 0.43 <= ton < 0.55:
+        return "Mavi"
 
-    ton = float(np.median([hsv[0] for hsv in renkli]))
-    parlaklik = float(np.median([hsv[2] for hsv in renkli]))
+    if 0.55 <= ton < 0.72:
+        return "Lacivert" if val < 0.55 else "Mavi"
 
     if ton < 0.04 or ton >= 0.96:
         return "Kırmızı"
@@ -227,18 +248,12 @@ def renk_bul(resim):
         return "Turuncu"
     if ton < 0.17:
         return "Sarı"
-    if ton < 0.45:
-        return "Yeşil"
-    if ton < 0.57:
-        return "Mavi"
-    if ton < 0.72:
-        return "Lacivert" if parlaklik < 0.55 else "Mavi"
     if ton < 0.82:
         return "Mor"
     if ton < 0.94:
         return "Pembe"
 
-    return "Mavi"
+    return "Kırmızı"
 
 
 # -----------------------------
