@@ -257,8 +257,13 @@ if "dolap" in st.session_state:
                 f"Model tahmin puanı: %{parca['guven'] * 100:.1f}"
             )
 
+   
     st.divider()
-    st.header("👗 Kombin önerileri")
+    st.header("👗 Akıllı Kombin Danışmanın")
+    st.write(
+        "Dolabındaki kıyafetleri tamamlayan renkleri, "
+        "aksesuarları ve alternatif stilleri keşfet!"
+    )
 
     ustler = [
         p for p in dolap
@@ -276,82 +281,197 @@ if "dolap" in st.session_state:
         ]
     ]
 
-    elbiseler = [p for p in dolap if p["tur"] == "Elbise"]
+    elbiseler = [
+        p for p in dolap if p["tur"] == "Elbise"
+    ]
+
     ayakkabilar = [
         p for p in dolap
         if p["tur"] in ["Ayakkabı", "Spor ayakkabı"]
     ]
 
-    kombin_sayisi = 0
+    canta_renkleri = ["Siyah", "Bej", "Beyaz", "Kahverengi"]
+    takilar = ["Altın renkli takılar", "Gümüş renkli takılar"]
+    ayakkabi_alternatifleri = [
+        "Beyaz", "Siyah", "Kırmızı", "Bej"
+    ]
+    ust_alternatifleri = [
+        "Beyaz", "Siyah", "Krem", "Gri", "Pembe", "Mavi"
+    ]
 
-    for ust in ustler:
-        for alt in altlar:
-            if ust["isim"] == alt["isim"]:
-                continue
+    def kombin_aciklamasi(ust, alt):
+        ust_rengi = ust["renk"]
+        alt_rengi = alt["renk"]
 
-            if ust["renk"] == alt["renk"]:
-                aciklama = (
-                    "Aynı renk tonları sade bir görünüm oluşturabilir. "
-                    "Farklı aksesuarlarla kombini hareketlendirebilirsin."
-                )
-            else:
-                aciklama = (
-                    f"{ust['renk']} üst ve {alt['renk']} alt parça, "
-                    "birbirinden ayrılan renkleriyle dengeli bir "
-                    "kombin alternatifi olabilir."
-                )
-
-            st.subheader(
-                f"Kombin {kombin_sayisi + 1}: "
-                f"{ust['tur']} + {alt['tur']}"
+        if ust_rengi == alt_rengi:
+            renk_yorumu = (
+                f"{ust_rengi} üst ve {alt_rengi} alt parça "
+                "birbirine yakın, bütünlüklü bir görünüm oluşturur. "
+                "Farklı dokular ve aksesuarlarla kombine hareket katabilirsin."
+            )
+        else:
+            renk_yorumu = (
+                f"{ust_rengi} üst ile {alt_rengi} alt parçanın "
+                "kontrastını kullanabilirsin. Renklerden biri daha "
+                "belirginse diğer parçaları sade tutmak görünümü dengeler."
             )
 
-            kolonlar = st.columns([1, 1, 2])
+        if ust_rengi in ["Siyah", "Beyaz", "Gri", "Bej", "Lacivert"]:
+            takı_yorumu = (
+                "Altın renkli küpe, ince kolye veya bileklik "
+                "kombine sıcaklık katabilir. Daha soğuk ve sade "
+                "bir görünüm için gümüş renkli takıları da deneyebilirsin."
+            )
+        else:
+            takı_yorumu = (
+                "Altın renkli küçük halka küpeler veya ince bir kolye "
+                "kombine sıcaklık katabilir. Daha minimal bir görünüm "
+                "istersen tek bir aksesuar seçebilirsin."
+            )
 
-            with kolonlar[0]:
-                st.image(ust["resim"], use_container_width=True)
-                st.caption(f"{ust['tur']} — {ust['renk']}")
+        if alt_rengi in ["Siyah", "Beyaz", "Gri", "Bej", "Lacivert"]:
+            ayakkabi_yorumu = (
+                "Kırmızı ayakkabı kombine canlı bir vurgu ekleyebilir. "
+                "Daha sade bir alternatif olarak beyaz, siyah veya "
+                "bej ayakkabı tercih edebilirsin."
+            )
+        else:
+            ayakkabi_yorumu = (
+                "Beyaz veya siyah ayakkabı renk dengesini koruyabilir. "
+                "Daha iddialı bir görünüm için kırmızı ayakkabıyı "
+                "deneyebilir, ancak diğer aksesuarları sade tutabilirsin."
+            )
 
-            with kolonlar[1]:
-                st.image(alt["resim"], use_container_width=True)
-                st.caption(f"{alt['tur']} — {alt['renk']}")
+        canta = (
+            "Bej çanta yumuşak bir geçiş sağlar; siyah çanta daha "
+            "belirgin ve klasik bir görünüm verir. Beyaz çanta ise "
+            "özellikle açık renkli kombinlere ferahlık katar."
+        )
 
-            with kolonlar[2]:
-                st.write(aciklama)
+        alternatifler = [
+            renk for renk in ust_alternatifleri
+            if renk != ust_rengi
+        ][:4]
 
-                if ayakkabilar:
-                    st.write(
-                        "Tamamlayıcı parça: "
-                        + ayakkabilar[0]["tur"]
-                        + f" ({ayakkabilar[0]['renk']})"
-                    )
+        ust_onerisi = (
+            f"Üst parçanın yerine {', '.join(alternatifler)} "
+            "renklerinde bir tişört de deneyebilirsin. "
+            "Beyaz daha ferah, siyah daha güçlü, krem daha yumuşak "
+            "ve pastel tonlar daha hafif bir görünüm verir."
+        )
 
-            kombin_sayisi += 1
+        stil = (
+            "Günlük kullanımda spor ayakkabı ve sade bir çanta; "
+            "daha şık bir ortamda ise zarif takılar ve daha klasik "
+            "bir ayakkabı tercih edebilirsin. Ceket eklemek kombini "
+            "daha düzenli gösterir."
+        )
+
+        return (
+            f"**Renk uyumu:** {renk_yorumu}\n\n"
+            f"**Takı önerisi:** {takı_yorumu}\n\n"
+            f"**Ayakkabı seçenekleri:** {ayakkabi_yorumu}\n\n"
+            f"**Çanta önerisi:** {canta}\n\n"
+            f"**Alternatif tişörtler:** {ust_onerisi}\n\n"
+            f"**Stil önerisi:** {stil}\n\n"
+            "**Küçük ipucu:** Bu öneriler renk uyumuna dayalı "
+            "alternatiflerdir. Kumaş, desen, mevsim ve kişisel "
+            "zevk de son görünümü etkiler."
+        )
+
+    kombin_sayisi = 0
+
+    if ustler and altlar:
+        for ust in ustler:
+            for alt in altlar:
+                if ust["isim"] == alt["isim"]:
+                    continue
+
+                kombin_sayisi += 1
+
+                with st.expander(
+                    f"✨ Kombin {kombin_sayisi}: "
+                    f"{ust['renk']} {ust['tur']} + "
+                    f"{alt['renk']} {alt['tur']}",
+                    expanded=(kombin_sayisi == 1)
+                ):
+                    kolonlar = st.columns(2)
+
+                    with kolonlar[0]:
+                        st.image(
+                            ust["resim"],
+                            use_container_width=True
+                        )
+                        st.caption(
+                            f"{ust['tur']} — {ust['renk']}"
+                        )
+
+                    with kolonlar[1]:
+                        st.image(
+                            alt["resim"],
+                            use_container_width=True
+                        )
+                        st.caption(
+                            f"{alt['tur']} — {alt['renk']}"
+                        )
+
+                    st.markdown(kombin_aciklamasi(ust, alt))
+
+                    if ayakkabilar:
+                        st.info(
+                            "Dolabındaki ayakkabı: "
+                            f"{ayakkabilar[0]['renk']} "
+                            f"{ayakkabilar[0]['tur']}. "
+                            "Bu parçayı da kombinle deneyebilirsin."
+                        )
+                    else:
+                        st.caption(
+                            "Dolabında ayakkabı fotoğrafı bulunmuyor. "
+                            "Önerilen ayakkabı renkleri örnektir."
+                        )
+
+                if kombin_sayisi >= 5:
+                    break
 
             if kombin_sayisi >= 5:
                 break
 
-        if kombin_sayisi >= 5:
-            break
-
     if kombin_sayisi == 0 and elbiseler:
         for elbise in elbiseler[:3]:
-            st.image(elbise["resim"], width=220)
-            st.write(
-                f"{elbise['renk']} {elbise['tur']} "
-                "tek parça kombin olarak kullanılabilir."
+            st.subheader(
+                f"{elbise['renk']} {elbise['tur']} için öneriler"
             )
+            st.image(elbise["resim"], width=240)
+
+            st.markdown(
+                f"**Renk uyumu:** {elbise['renk']} elbiseni "
+                "tamamlayacak aksesuarları elbisenin tonu ve "
+                "kullanacağın ortama göre seçebilirsin.\n\n"
+                "**Takı:** Altın renkli takılar sıcak bir görünüm; "
+                "gümüş renkli takılar daha soğuk bir görünüm verebilir.\n\n"
+                "**Ayakkabı:** Siyah, bej veya beyaz ayakkabıları "
+                "deneyebilirsin. Kırmızı ayakkabı ise daha dikkat "
+                "çekici bir renk vurgusu oluşturabilir.\n\n"
+                "**Çanta:** Siyah veya bej çanta kolay eşleşen "
+                "seçeneklerdir.\n\n"
+                "**Alternatif:** Elbisenin üzerine uygun bir ceket "
+                "ekleyerek görünümü günlük ya da daha şık bir tarza "
+                "uyarlayabilirsin."
+            )
+
             if ayakkabilar:
                 st.write(
-                    f"Yanına {ayakkabilar[0]['renk']} "
-                    f"{ayakkabilar[0]['tur']} ekleyebilirsin."
+                    "Dolabındaki ayakkabı: "
+                    f"{ayakkabilar[0]['renk']} "
+                    f"{ayakkabilar[0]['tur']}"
                 )
+
             kombin_sayisi += 1
 
     if kombin_sayisi == 0:
         st.info(
-            "Kombin oluşturmak için en az bir üst ve bir alt "
-            "parça veya bir elbise yükle."
+            "Ayrıntılı kombin önerileri için en az bir üst ve "
+            "bir alt parça veya bir elbise yükleyip analiz et."
         )
 
 st.divider()
