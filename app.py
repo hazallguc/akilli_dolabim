@@ -39,7 +39,6 @@ if fotograflar:
 st.divider()
 st.caption("Akıllı Dolabım | İlk prototip")
 
-%%writefile app.py
 import streamlit as st
 from PIL import Image
 
