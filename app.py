@@ -138,8 +138,12 @@ def renk_bul(resim):
     ortalama_v = np.median([hsv[2] for hsv in hsv_pikseller])
     ortalama_s = np.median([hsv[1] for hsv in hsv_pikseller])
 
- if ortalama_v < 0.25:
-    return "Siyah"
+    # Çok koyu pikselleri siyah olarak değerlendir.
+    ortalama_v = np.median([hsv[2] for hsv in hsv_pikseller])
+    ortalama_s = np.median([hsv[1] for hsv in hsv_pikseller])
+
+    if ortalama_v < 0.25:
+        return "Siyah"
 
     if ortalama_s < 0.12:
         if ortalama_v > 0.82:
