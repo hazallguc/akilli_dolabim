@@ -5,7 +5,6 @@ import os
 import base64
 import io
 import colorsys
-from itertools import combinations
 
 import numpy as np
 from PIL import Image
@@ -70,35 +69,79 @@ def dolabi_yukle():
         with open(DOSYA, "r", encoding="utf-8") as dosya:
             veriler = json.load(dosya)
 
-        return veriler if isinstance(veriler, list) else []
+        if not isinstance(veriler, list):
+            st.error("dolap.json beklenen biçimde değil. Dosyayı silme.")
+            return []
 
-    except (json.JSONDecodeError, OSError):
-        st.error(
-            "Dolap verileri okunamadı. "
-            "dolap.json dosyasını kontrol et."
-        )
+        duzeltilmis = []
+
+        for sira, parca in enumerate(veriler, start=1):
+            if not isinstance(parca, dict):
+                st.warning(
+                    f"{sira}. kayıt beklenen biçimde değil; "
+                    "bu kayıt korunarak görüntüleme atlandı."
+                )
+                continue
+
+            kayit = dict(parca)
+
+            kayit.setdefault("dosya_adi", f"Kıyafet {sira}")
+            kayit.setdefault("tur", "Üst giyim")
+            kayit.setdefault("renk", "Bilinmiyor")
+            kayit.setdefault("resim", "")
+
+            if not isinstance(kayit["dosya_adi"], str) or not kayit["dosya_adi"].strip():
+                kayit["dosya_adi"] = f"Kıyafet {sira}"
+
+            if kayit["tur"] not in KIYAFET_TURLERI:
+                kayit["tur"] = "Üst giyim"
+
+            if not isinstance(kayit["renk"], str) or not kayit["renk"].strip():
+                kayit["renk"] = "Bilinmiyor"
+
+            if not isinstance(kayit["resim"], str):
+                kayit["resim"] = ""
+
+            duzeltilmis.append(kayit)
+
+        return duzeltilmis
+
+    except (json.JSONDecodeError, OSError) as hata:
+        st.error("Dolap verileri okunamadı. dolap.json dosyanı kontrol et.")
+        st.code(str(hata))
         return []
 
 
 def dolabi_kaydet(veriler):
-    with open(DOSYA, "w", encoding="utf-8") as dosya:
-        json.dump(
-            veriler,
-            dosya,
-            ensure_ascii=False,
-            indent=2
-        )
+    gecici_dosya = DOSYA + ".tmp"
+
+    with open(gecici_dosya, "w", encoding="utf-8") as dosya:
+        json.dump(veriler, dosya, ensure_ascii=False, indent=2)
+
+    os.replace(gecici_dosya, DOSYA)
 
 
 def resim_base64(resim):
     tampon = io.BytesIO()
-    resim.save(tampon, format="JPEG")
+    resim.convert("RGB").save(tampon, format="JPEG")
     return base64.b64encode(tampon.getvalue()).decode("utf-8")
 
 
 def base64_resim_ac(veri):
+    if not veri:
+        raise ValueError("Bu kayıtta fotoğraf verisi bulunmuyor.")
+
     ham_veri = base64.b64decode(veri)
     return Image.open(io.BytesIO(ham_veri)).convert("RGB")
+
+
+def parca_adi(parca, sira=None):
+    ad = parca.get("dosya_adi")
+
+    if isinstance(ad, str) and ad.strip():
+        return ad
+
+    return f"Kıyafet {sira}" if sira is not None else "İsimsiz kıyafet"
 
 
 # --------------------------------------------------
@@ -117,11 +160,7 @@ def kiyafet_turu_bul(resim, tur_modeli):
         "a photograph of an accessory such as a hat or scarf"
     ]
 
-    sonuc = tur_modeli(
-        resim,
-        candidate_labels=etiketler
-    )
-
+    sonuc = tur_modeli(resim, candidate_labels=etiketler)
     etiket = sonuc[0]["label"].lower()
 
     if "shoes" in etiket or "sneakers" in etiket:
@@ -143,16 +182,13 @@ def kiyafet_turu_bul(resim, tur_modeli):
 
 
 # --------------------------------------------------
-# GÖRÜNTÜDEN RENK ÖRNEKLERİ ALMA
+# RENK ANALİZİ
 # --------------------------------------------------
 
 def hsv_pikselleri(resim, maske=None, maksimum=12000):
-    """
-    Resmi HSV renk uzayına dönüştürür.
-    Maske verilirse yalnızca maskenin içindeki pikselleri kullanır.
-    """
-
-    rgb = np.asarray(resim.convert("RGB").resize((120, 120)))
+    rgb = np.asarray(
+        resim.convert("RGB").resize((120, 120))
+    )
     pikseller = rgb.reshape(-1, 3).astype(np.float32) / 255.0
 
     if maske is not None:
@@ -174,41 +210,25 @@ def hsv_pikselleri(resim, maske=None, maksimum=12000):
         ).astype(int)
         pikseller = pikseller[secilenler]
 
-    hsv = np.array([
+    return np.array([
         colorsys.rgb_to_hsv(float(r), float(g), float(b))
         for r, g, b in pikseller
     ])
 
-    return hsv
-
-
-# --------------------------------------------------
-# RENK SINIFLANDIRMA
-# --------------------------------------------------
 
 def pembe_siyah_kontrol(hsv):
-    """
-    Pembe-siyah kararında kırmızı pikselleri ayrıca sayar.
-    Kırmızı baskınsa ayakkabıyı pembe-siyah diye etiketlemez.
-    """
-
     ton = hsv[:, 0]
     doygunluk = hsv[:, 1]
     parlaklik = hsv[:, 2]
 
-    # Pembe: kırmızı ton aralığından daha dar bir aralık.
     pembe = (
-        (ton >= 0.86) &
-        (ton < 0.95) &
-        (doygunluk >= 0.28) &
-        (parlaklik >= 0.35)
+        (ton >= 0.86) & (ton < 0.95) &
+        (doygunluk >= 0.28) & (parlaklik >= 0.35)
     )
 
-    # Kırmızı ton, HSV çemberinin iki ucunda bulunur.
     kirmizi = (
         ((ton < 0.04) | (ton >= 0.97)) &
-        (doygunluk >= 0.28) &
-        (parlaklik >= 0.25)
+        (doygunluk >= 0.28) & (parlaklik >= 0.25)
     )
 
     siyah = parlaklik < 0.20
@@ -221,7 +241,6 @@ def pembe_siyah_kontrol(hsv):
         np.sum((doygunluk >= 0.20) & (parlaklik >= 0.20))
     )
 
-    # Görüntüde yeterli sayıda piksel yoksa karar verme.
     if renkli_sayisi == 0:
         return False
 
@@ -229,61 +248,43 @@ def pembe_siyah_kontrol(hsv):
     siyah_orani = siyah_sayisi / len(hsv)
     kirmizi_orani = kirmizi_sayisi / renkli_sayisi
 
-    # Kırmızı belirginse pembe-siyah sınıfını engelle.
     if kirmizi_orani >= 0.20:
         return False
 
-    # İki renk de gerçekten görünür olmalı.
-    if (
+    return (
         pembe_sayisi >= 20
         and siyah_sayisi >= 20
         and pembe_orani >= 0.15
         and siyah_orani >= 0.10
         and pembe_sayisi > kirmizi_sayisi * 1.5
-    ):
-        return True
-
-    return False
+    )
 
 
 def piksel_renk_sinifi(r, g, b):
     h, s, v = colorsys.rgb_to_hsv(
-        r / 255.0,
-        g / 255.0,
-        b / 255.0
+        r / 255.0, g / 255.0, b / 255.0
     )
 
     if v < 0.20:
         return "Siyah"
 
     if s < 0.18:
-        if v > 0.90:
-            return "Beyaz"
-        if v < 0.48:
-            return "Gri"
-        return "Gri"
+        return "Beyaz" if v > 0.90 else "Gri"
 
     if h < 0.04 or h >= 0.97:
         return "Kırmızı"
-
     if h < 0.10:
         return "Turuncu"
-
     if h < 0.17:
         return "Sarı"
-
     if h < 0.43:
         return "Yeşil"
-
     if h < 0.56:
         return "Turkuaz"
-
     if h < 0.72:
         return "Mavi"
-
     if h < 0.82:
         return "Mor"
-
     if h < 0.95:
         return "Pembe"
 
@@ -291,12 +292,6 @@ def piksel_renk_sinifi(r, g, b):
 
 
 def renk_bul(resim, bolge_modeli, kiyafet_turu):
-    """
-    Önce kıyafetin bölgesini bulmaya çalışır.
-    Ayakkabıda ayakkabı maskesini kullanır.
-    Sonra pembe-siyah ve baskın renk kontrollerini yapar.
-    """
-
     analiz_resmi = resim.convert("RGB")
     maske = None
 
@@ -332,7 +327,6 @@ def renk_bul(resim, bolge_modeli, kiyafet_turu):
                 maske = birlesik
 
     except Exception:
-        # Bölge tespiti başarısız olursa tüm fotoğrafı analiz et.
         maske = None
 
     hsv = hsv_pikselleri(analiz_resmi, maske)
@@ -340,28 +334,19 @@ def renk_bul(resim, bolge_modeli, kiyafet_turu):
     if kiyafet_turu == "Ayakkabı" and pembe_siyah_kontrol(hsv):
         return "Pembe-Siyah"
 
-    # Çok açık/koyu ve renksiz piksellerin baskın rengi yanıltmasını azalt.
     renkli = hsv[
         (hsv[:, 1] >= 0.18) &
         (hsv[:, 2] >= 0.20)
     ]
-
-    if len(renkli) > 0:
-        hsv_kullan = renkli
-    else:
-        hsv_kullan = hsv
+    hsv_kullan = renkli if len(renkli) > 0 else hsv
 
     siniflar = []
 
     for h, s, v in hsv_kullan:
-        # HSV'den RGB'ye dönüşüm
         r, g, b = colorsys.hsv_to_rgb(float(h), float(s), float(v))
-
         siniflar.append(
             piksel_renk_sinifi(
-                int(r * 255),
-                int(g * 255),
-                int(b * 255)
+                int(r * 255), int(g * 255), int(b * 255)
             )
         )
 
@@ -381,17 +366,12 @@ def renk_bul(resim, bolge_modeli, kiyafet_turu):
 
 def kombin_icin_renk_uyumu(renk1, renk2):
     temel_uyumlar = {
-        "Siyah": ["Beyaz", "Gri", "Kırmızı", "Pembe", "Mavi",
-                  "Yeşil", "Sarı", "Mor", "Turuncu", "Siyah"],
-        "Beyaz": ["Siyah", "Gri", "Mavi", "Pembe", "Kırmızı",
-                  "Yeşil", "Mor", "Turuncu", "Sarı", "Beyaz"],
-        "Gri": ["Siyah", "Beyaz", "Pembe", "Kırmızı", "Mavi",
-                "Mor", "Yeşil", "Gri"],
-        "Pembe": ["Siyah", "Beyaz", "Gri", "Mavi", "Mor",
-                  "Pembe", "Kırmızı"],
+        "Siyah": ["Beyaz", "Gri", "Kırmızı", "Pembe", "Mavi", "Yeşil", "Sarı", "Mor", "Turuncu", "Siyah"],
+        "Beyaz": ["Siyah", "Gri", "Mavi", "Pembe", "Kırmızı", "Yeşil", "Mor", "Turuncu", "Sarı", "Beyaz"],
+        "Gri": ["Siyah", "Beyaz", "Pembe", "Kırmızı", "Mavi", "Mor", "Yeşil", "Gri"],
+        "Pembe": ["Siyah", "Beyaz", "Gri", "Mavi", "Mor", "Pembe", "Kırmızı"],
         "Kırmızı": ["Siyah", "Beyaz", "Gri", "Mavi", "Kırmızı"],
-        "Mavi": ["Beyaz", "Siyah", "Gri", "Pembe", "Mavi",
-                 "Turuncu", "Sarı"],
+        "Mavi": ["Beyaz", "Siyah", "Gri", "Pembe", "Mavi", "Turuncu", "Sarı"],
         "Yeşil": ["Beyaz", "Siyah", "Gri", "Sarı", "Yeşil"],
         "Sarı": ["Siyah", "Beyaz", "Mavi", "Gri", "Sarı"],
         "Mor": ["Beyaz", "Siyah", "Gri", "Pembe", "Mor"],
@@ -403,7 +383,6 @@ def kombin_icin_renk_uyumu(renk1, renk2):
 
     if renk1 == "Pembe-Siyah":
         return renk2 in temel_uyumlar["Pembe-Siyah"]
-
     if renk2 == "Pembe-Siyah":
         return renk1 in temel_uyumlar["Pembe-Siyah"]
 
@@ -411,8 +390,8 @@ def kombin_icin_renk_uyumu(renk1, renk2):
 
 
 def kombin_aciklamasi(parcalar, ortam):
-    renkler = [p["renk"] for p in parcalar]
-    turler = [p["tur"] for p in parcalar]
+    renkler = [p.get("renk", "Bilinmiyor") for p in parcalar]
+    turler = [p.get("tur", "Üst giyim") for p in parcalar]
 
     if ortam == "Günlük":
         stil = "Rahat, kullanışlı ve günlük hayata uygun"
@@ -435,22 +414,16 @@ def kombin_aciklamasi(parcalar, ortam):
             "Nötr renkler, diğer renklerin dengeli görünmesine yardımcı olur."
         )
 
-    ayakkabi_var = "Ayakkabı" in turler
-
-    ayakkabi_notu = (
-        "Ayakkabı, kombinin alt kısmını tamamlıyor."
-        if ayakkabi_var
-        else "Ayakkabı ekleyerek kombini tamamlayabilirsin."
-    )
-
     return {
         "stil": stil,
         "ortam": ortam_metni,
         "renk": renk_aciklama,
-        "ayakkabi": ayakkabi_notu,
-        "aksesuar": (
-            "Sade bir çanta ve minimal takılar görünümü tamamlayabilir."
+        "ayakkabi": (
+            "Ayakkabı, kombinin alt kısmını tamamlıyor."
+            if "Ayakkabı" in turler
+            else "Ayakkabı ekleyerek kombini tamamlayabilirsin."
         ),
+        "aksesuar": "Sade bir çanta ve minimal takılar görünümü tamamlayabilir.",
         "alternatif": (
             "Daha farklı bir görünüm için parçalardan birini "
             "siyah, beyaz veya gri gibi nötr bir renkle değiştirebilirsin."
@@ -459,50 +432,37 @@ def kombin_aciklamasi(parcalar, ortam):
 
 
 def kombin_oner(dolap, ortam, adet=3):
-    ustler = [
-        x for x in dolap
-        if x["tur"] == "Üst giyim"
-    ]
-
-    altlar = [
-        x for x in dolap
-        if x["tur"] == "Alt giyim"
-    ]
-
-    elbiseler = [
-        x for x in dolap
-        if x["tur"] == "Elbise"
-    ]
-
-    ayakkabilar = [
-        x for x in dolap
-        if x["tur"] == "Ayakkabı"
-    ]
+    ustler = [x for x in dolap if x.get("tur") == "Üst giyim"]
+    altlar = [x for x in dolap if x.get("tur") == "Alt giyim"]
+    elbiseler = [x for x in dolap if x.get("tur") == "Elbise"]
+    ayakkabilar = [x for x in dolap if x.get("tur") == "Ayakkabı"]
 
     kombinler = []
 
-    # Üst + alt + ayakkabı
     for ust in ustler:
         for alt in altlar:
-            if not kombin_icin_renk_uyumu(ust["renk"], alt["renk"]):
+            if not kombin_icin_renk_uyumu(
+                ust.get("renk", "Bilinmiyor"),
+                alt.get("renk", "Bilinmiyor")
+            ):
                 continue
 
             if ayakkabilar:
                 for ayakkabi in ayakkabilar:
                     if (
                         kombin_icin_renk_uyumu(
-                            ust["renk"], ayakkabi["renk"]
+                            ust.get("renk", "Bilinmiyor"),
+                            ayakkabi.get("renk", "Bilinmiyor")
                         )
                         or kombin_icin_renk_uyumu(
-                            alt["renk"], ayakkabi["renk"]
+                            alt.get("renk", "Bilinmiyor"),
+                            ayakkabi.get("renk", "Bilinmiyor")
                         )
                     ):
                         parcalar = [ust, alt, ayakkabi]
                         kombinler.append({
                             "parcalar": parcalar,
-                            "aciklama": kombin_aciklamasi(
-                                parcalar, ortam
-                            )
+                            "aciklama": kombin_aciklamasi(parcalar, ortam)
                         })
             else:
                 parcalar = [ust, alt]
@@ -511,19 +471,17 @@ def kombin_oner(dolap, ortam, adet=3):
                     "aciklama": kombin_aciklamasi(parcalar, ortam)
                 })
 
-    # Elbise + ayakkabı
     for elbise in elbiseler:
         if ayakkabilar:
             for ayakkabi in ayakkabilar:
                 if kombin_icin_renk_uyumu(
-                    elbise["renk"], ayakkabi["renk"]
+                    elbise.get("renk", "Bilinmiyor"),
+                    ayakkabi.get("renk", "Bilinmiyor")
                 ):
                     parcalar = [elbise, ayakkabi]
                     kombinler.append({
                         "parcalar": parcalar,
-                        "aciklama": kombin_aciklamasi(
-                            parcalar, ortam
-                        )
+                        "aciklama": kombin_aciklamasi(parcalar, ortam)
                     })
         else:
             parcalar = [elbise]
@@ -532,14 +490,14 @@ def kombin_oner(dolap, ortam, adet=3):
                 "aciklama": kombin_aciklamasi(parcalar, ortam)
             })
 
-    # Aynı parçaları tekrar tekrar göstermemek için benzersizleştir.
     benzersiz = []
     gorulen = set()
 
     for kombin in kombinler:
-        anahtar = tuple(
-            sorted(p["dosya_adi"] for p in kombin["parcalar"])
-        )
+        anahtar = tuple(sorted(
+            p.get("dosya_adi") or p.get("resim", "")[:40]
+            for p in kombin["parcalar"]
+        ))
         if anahtar not in gorulen:
             gorulen.add(anahtar)
             benzersiz.append(kombin)
@@ -572,11 +530,7 @@ st.sidebar.header("📌 Menü")
 
 sayfa = st.sidebar.radio(
     "Ne yapmak istiyorsun?",
-    [
-        "Kıyafet Ekle",
-        "Dolabım",
-        "Kombin Öner"
-    ]
+    ["Kıyafet Ekle", "Dolabım", "Kombin Öner"]
 )
 
 # --------------------------------------------------
@@ -592,13 +546,13 @@ if sayfa == "Kıyafet Ekle":
     )
 
     if yuklenen is not None:
-        resim = Image.open(yuklenen).convert("RGB")
+        try:
+            resim = Image.open(yuklenen).convert("RGB")
+        except Exception:
+            st.error("Bu fotoğraf açılamadı. JPG, PNG veya WEBP dosyası dene.")
+            st.stop()
 
-        st.image(
-            resim,
-            caption="Yüklediğin fotoğraf",
-            width=300
-        )
+        st.image(resim, caption="Yüklediğin fotoğraf", width=300)
 
         tur_secimi = st.selectbox(
             "Kıyafet türü",
@@ -613,11 +567,7 @@ if sayfa == "Kıyafet Ekle":
                     else:
                         tur = tur_secimi
 
-                    renk = renk_bul(
-                        resim,
-                        bolge_modeli,
-                        tur
-                    )
+                    renk = renk_bul(resim, bolge_modeli, tur)
 
                     kayit = {
                         "dosya_adi": yuklenen.name,
@@ -626,8 +576,10 @@ if sayfa == "Kıyafet Ekle":
                         "resim": resim_base64(resim)
                     }
 
-                    dolap.append(kayit)
-                    dolabi_kaydet(dolap)
+                    # Güncel kayıtları diskten alıp ekle; eski kıyafetleri ezme.
+                    guncel_dolap = dolabi_yukle()
+                    guncel_dolap.append(kayit)
+                    dolabi_kaydet(guncel_dolap)
 
                 st.success("Kıyafet dolabına eklendi!")
                 st.write(f"**Kıyafet türü:** {tur}")
@@ -668,44 +620,52 @@ elif sayfa == "Dolabım":
 
         if filtre != "Tümü":
             goruntulenecek = [
-                x for x in dolap if x["tur"] == filtre
+                x for x in dolap
+                if x.get("tur", "Üst giyim") == filtre
             ]
 
-        sutun_sayisi = 3
+        if not goruntulenecek:
+            st.info("Bu türde kayıtlı kıyafet yok. Filtreyi 'Tümü' yapmayı dene.")
+        else:
+            sutun_sayisi = 3
 
-        for baslangic in range(
-            0, len(goruntulenecek), sutun_sayisi
-        ):
-            sutunlar = st.columns(sutun_sayisi)
+            for baslangic in range(0, len(goruntulenecek), sutun_sayisi):
+                sutunlar = st.columns(sutun_sayisi)
 
-            for i, sutun in enumerate(sutunlar):
-                sira = baslangic + i
+                for i, sutun in enumerate(sutunlar):
+                    sira = baslangic + i
 
-                if sira >= len(goruntulenecek):
-                    continue
+                    if sira >= len(goruntulenecek):
+                        continue
 
-                parca = goruntulenecek[sira]
+                    parca = goruntulenecek[sira]
+                    ad = parca_adi(parca, sira + 1)
 
-                with sutun:
-                    try:
-                        st.image(
-                            base64_resim_ac(parca["resim"]),
-                            use_container_width=True
-                        )
-                    except Exception:
-                        st.warning("Fotoğraf görüntülenemedi.")
+                    with sutun:
+                        try:
+                            st.image(
+                                base64_resim_ac(parca.get("resim", "")),
+                                use_container_width=True
+                            )
+                        except Exception:
+                            st.warning(
+                                "Bu kaydın fotoğrafı eksik veya açılamıyor. "
+                                "Kayıt otomatik olarak silinmedi."
+                            )
 
-                    st.markdown(f"**{parca['dosya_adi']}**")
-                    st.write(f"Tür: {parca['tur']}")
-                    st.write(f"Renk: {parca['renk']}")
+                        st.markdown(f"**{ad}**")
+                        st.write(f"Tür: {parca.get('tur', 'Üst giyim')}")
+                        st.write(f"Renk: {parca.get('renk', 'Bilinmiyor')}")
 
-                    if st.button(
-                        "🗑️ Sil",
-                        key=f"sil_{sira}_{parca['dosya_adi']}"
-                    ):
-                        dolap.remove(parca)
-                        dolabi_kaydet(dolap)
-                        st.rerun()
+                        if st.button("🗑️ Sil", key=f"sil_{sira}_{ad}"):
+                            try:
+                                hedef_indeks = dolap.index(parca)
+                                dolap.pop(hedef_indeks)
+                                dolabi_kaydet(dolap)
+                                st.rerun()
+                            except (ValueError, OSError) as hata:
+                                st.error("Kıyafet silinemedi.")
+                                st.code(str(hata))
 
 
 # --------------------------------------------------
@@ -746,24 +706,23 @@ elif sayfa == "Kombin Öner":
 
                     parcalar = kombin["parcalar"]
                     aciklama = kombin["aciklama"]
-
                     sutunlar = st.columns(len(parcalar))
 
-                    for sutun, parca in zip(sutunlar, parcalar):
+                    for parca_sira, (sutun, parca) in enumerate(
+                        zip(sutunlar, parcalar), start=1
+                    ):
                         with sutun:
                             try:
                                 st.image(
-                                    base64_resim_ac(parca["resim"]),
+                                    base64_resim_ac(parca.get("resim", "")),
                                     use_container_width=True
                                 )
                             except Exception:
-                                st.warning(
-                                    "Bu parçanın fotoğrafı açılamadı."
-                                )
+                                st.warning("Bu parçanın fotoğrafı açılamadı.")
 
-                            st.markdown(f"**{parca['tur']}**")
-                            st.write(f"Renk: {parca['renk']}")
-                            st.caption(parca["dosya_adi"])
+                            st.markdown(f"**{parca.get('tur', 'Üst giyim')}**")
+                            st.write(f"Renk: {parca.get('renk', 'Bilinmiyor')}")
+                            st.caption(parca_adi(parca, parca_sira))
 
                     st.markdown("#### 🪄 Kombin açıklaması")
                     st.write(aciklama["stil"] + " bir kombin.")
