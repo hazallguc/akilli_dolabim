@@ -25,6 +25,43 @@ TURLER = [
     "Ayakkabı", "Çanta", "Aksesuar", "Diğer"
 ]
 
+ALT_TURLER = {
+    "Üst giyim": [
+        "Tişört", "Bluz", "Gömlek", "Crop top",
+        "Sweatshirt", "Hoodie", "Kazak", "Spor üst",
+        "Body", "Diğer üst"
+    ],
+    "Alt giyim": [
+        "Kot pantolon", "Kumaş pantolon", "Eşofman altı",
+        "Tayt", "Etek", "Şort", "Spor tayt",
+        "Spor şort", "Diğer alt"
+    ],
+    "Elbise": [
+        "Günlük elbise", "Şık elbise", "Abiye",
+        "Spor elbise", "Diğer elbise"
+    ],
+    "Dış giyim": [
+        "Blazer ceket", "Günlük ceket", "Deri ceket",
+        "Kot ceket", "Hırka", "Mont", "Kaban",
+        "Spor ceket", "Diğer dış giyim"
+    ],
+    "Ayakkabı": [
+        "Spor ayakkabı", "Sneaker", "Topuklu ayakkabı",
+        "Babet", "Loafer", "Bot", "Sandalet",
+        "Klasik ayakkabı", "Diğer ayakkabı"
+    ],
+    "Çanta": [
+        "Günlük çanta", "Şık çanta", "Omuz çantası",
+        "El çantası", "Sırt çantası", "Spor çanta",
+        "Diğer çanta"
+    ],
+    "Aksesuar": [
+        "Takı", "Kemer", "Şapka", "Atkı",
+        "Gözlük", "Diğer aksesuar"
+    ],
+    "Diğer": ["Diğer"]
+}
+
 RENKLER = [
     "Siyah", "Beyaz", "Gri", "Kırmızı", "Pembe", "Mavi",
     "Lacivert", "Yeşil", "Sarı", "Turuncu", "Mor",
@@ -32,8 +69,9 @@ RENKLER = [
     "Çok renkli", "Bilinmiyor"
 ]
 
+
 # ---------------------------------------------------------
-# VERİ KAYITLARI
+# KAYITLAR
 # ---------------------------------------------------------
 
 def dolabi_yukle():
@@ -55,8 +93,9 @@ def dolabi_yukle():
 def dolabi_kaydet(veri):
     try:
         if os.path.exists(DOSYA) and not os.path.exists(YEDEK):
-            with open(DOSYA, "rb") as kaynak, open(YEDEK, "wb") as yedek:
-                yedek.write(kaynak.read())
+            with open(DOSYA, "rb") as kaynak:
+                with open(YEDEK, "wb") as yedek:
+                    yedek.write(kaynak.read())
 
         gecici = DOSYA + ".tmp"
         with open(gecici, "w", encoding="utf-8") as f:
@@ -74,8 +113,20 @@ def tur_al(kayit):
     return tur if tur in TURLER else "Diğer"
 
 
+def alt_tur_al(kayit):
+    alt = kayit.get("alt_tur", "")
+    tur = tur_al(kayit)
+    if alt in ALT_TURLER.get(tur, []):
+        return alt
+    return ""
+
+
 def renk_al(kayit):
     return str(kayit.get("renk", "Bilinmiyor") or "Bilinmiyor")
+
+
+def dosya_adi(kayit):
+    return str(kayit.get("dosya_adi", "")).lower()
 
 
 def fotograf_ac(kayit):
@@ -93,8 +144,68 @@ def fotograf_base64(fotograf):
 
 
 # ---------------------------------------------------------
-# KIYAFET TÜRÜ TAHMİNİ
+# DAHA AYRINTILI KIYAFET ANALİZİ
 # ---------------------------------------------------------
+
+# Model genel kategoriyi ve mümkün olduğunda kıyafetin alt türünü tahmin eder.
+# İngilizce açıklamalar CLIP modeli için kullanılır.
+MODEL_ETIKETLERI = [
+    ("Üst giyim", "Tişört", "a photo of a t-shirt"),
+    ("Üst giyim", "Bluz", "a photo of a women's blouse"),
+    ("Üst giyim", "Gömlek", "a photo of a button-up shirt"),
+    ("Üst giyim", "Crop top", "a photo of a crop top"),
+    ("Üst giyim", "Sweatshirt", "a photo of a sweatshirt"),
+    ("Üst giyim", "Hoodie", "a photo of a hoodie"),
+    ("Üst giyim", "Kazak", "a photo of a knitted sweater"),
+    ("Üst giyim", "Spor üst", "a photo of a sports top"),
+    ("Üst giyim", "Body", "a photo of a bodysuit"),
+
+    ("Alt giyim", "Kot pantolon", "a photo of jeans"),
+    ("Alt giyim", "Kumaş pantolon", "a photo of dress trousers"),
+    ("Alt giyim", "Eşofman altı", "a photo of sweatpants"),
+    ("Alt giyim", "Tayt", "a photo of leggings"),
+    ("Alt giyim", "Spor tayt", "a photo of sports leggings"),
+    ("Alt giyim", "Etek", "a photo of a skirt"),
+    ("Alt giyim", "Şort", "a photo of shorts"),
+    ("Alt giyim", "Spor şort", "a photo of sports shorts"),
+
+    ("Elbise", "Günlük elbise", "a photo of a casual dress"),
+    ("Elbise", "Şık elbise", "a photo of an elegant dress"),
+    ("Elbise", "Abiye", "a photo of an evening gown"),
+    ("Elbise", "Spor elbise", "a photo of a sporty dress"),
+
+    ("Dış giyim", "Blazer ceket", "a photo of a blazer"),
+    ("Dış giyim", "Günlük ceket", "a photo of a casual jacket"),
+    ("Dış giyim", "Deri ceket", "a photo of a leather jacket"),
+    ("Dış giyim", "Kot ceket", "a photo of a denim jacket"),
+    ("Dış giyim", "Hırka", "a photo of a cardigan"),
+    ("Dış giyim", "Mont", "a photo of a winter coat"),
+    ("Dış giyim", "Kaban", "a photo of a long wool coat"),
+    ("Dış giyim", "Spor ceket", "a photo of a sports jacket"),
+
+    ("Ayakkabı", "Spor ayakkabı", "a photo of athletic running shoes"),
+    ("Ayakkabı", "Sneaker", "a photo of casual sneakers"),
+    ("Ayakkabı", "Topuklu ayakkabı", "a photo of high heels"),
+    ("Ayakkabı", "Babet", "a photo of ballet flats"),
+    ("Ayakkabı", "Loafer", "a photo of loafers"),
+    ("Ayakkabı", "Bot", "a photo of boots"),
+    ("Ayakkabı", "Sandalet", "a photo of sandals"),
+    ("Ayakkabı", "Klasik ayakkabı", "a photo of formal shoes"),
+
+    ("Çanta", "Günlük çanta", "a photo of a casual handbag"),
+    ("Çanta", "Şık çanta", "a photo of an elegant evening handbag"),
+    ("Çanta", "Omuz çantası", "a photo of a shoulder bag"),
+    ("Çanta", "El çantası", "a photo of a handbag"),
+    ("Çanta", "Sırt çantası", "a photo of a backpack"),
+    ("Çanta", "Spor çanta", "a photo of a gym bag"),
+
+    ("Aksesuar", "Takı", "a photo of jewelry"),
+    ("Aksesuar", "Kemer", "a photo of a belt"),
+    ("Aksesuar", "Şapka", "a photo of a hat"),
+    ("Aksesuar", "Atkı", "a photo of a scarf"),
+    ("Aksesuar", "Gözlük", "a photo of fashion glasses"),
+]
+
 
 @st.cache_resource(show_spinner=False)
 def clip_modeli():
@@ -110,34 +221,39 @@ def clip_modeli():
 
 def tur_tahmin_et(fotograf):
     model = clip_modeli()
-    if model is None:
-        return None
 
-    etiketler = {
-        "Üst giyim": "a photo of a shirt, blouse or top",
-        "Alt giyim": "a photo of trousers, jeans or a skirt",
-        "Elbise": "a photo of a dress",
-        "Dış giyim": "a photo of a coat or jacket",
-        "Ayakkabı": "a photo of shoes or sneakers",
-        "Çanta": "a photo of a handbag or backpack",
-        "Aksesuar": "a photo of jewelry or a fashion accessory",
-        "Diğer": "a photo of another fashion item"
-    }
+    if model is None:
+        return None, None
 
     try:
-        tahminler = model(
-            fotograf,
-            candidate_labels=list(etiketler.values())
-        )
+        # Modelin arka plan yerine kıyafete odaklanmasına yardımcı olmak için
+        # görselin merkez bölgesini de analiz eder.
+        resim = ImageOps.exif_transpose(fotograf).convert("RGB")
+        w, h = resim.size
+
+        merkez = resim.crop((
+            int(w * 0.08),
+            int(h * 0.08),
+            max(int(w * 0.92), 1),
+            max(int(h * 0.92), 1)
+        ))
+
+        adaylar = [x[2] for x in MODEL_ETIKETLERI]
+        tahminler = model(merkez, candidate_labels=adaylar)
+
+        if not tahminler:
+            return None, None
+
         bulunan = tahminler[0]["label"]
 
-        for tur, etiket in etiketler.items():
+        for tur, alt_tur, etiket in MODEL_ETIKETLERI:
             if etiket == bulunan:
-                return tur
+                return tur, alt_tur
+
     except Exception:
         pass
 
-    return None
+    return None, None
 
 
 # ---------------------------------------------------------
@@ -183,10 +299,12 @@ def renk_tahmin_et(fotograf):
         resim = ImageOps.exif_transpose(fotograf).convert("RGB")
         w, h = resim.size
 
+        # Kenarlardaki arka plan etkisini azalt.
         resim = resim.crop((
-            int(w * 0.10), int(h * 0.10),
-            max(int(w * 0.90), 1),
-            max(int(h * 0.90), 1)
+            int(w * 0.20),
+            int(h * 0.15),
+            max(int(w * 0.80), 1),
+            max(int(h * 0.85), 1)
         ))
 
         resim.thumbnail((100, 100))
@@ -215,7 +333,10 @@ def renk_tahmin_et(fotograf):
             return "Siyah-Beyaz"
 
         if oran2 >= 0.25 and renk1 != renk2:
-            return f"{renk1}-{renk2}"
+            birlesik = f"{renk1}-{renk2}"
+            if birlesik in RENKLER:
+                return birlesik
+            return "Çok renkli"
 
         if oran1 < 0.20:
             return "Çok renkli"
@@ -227,7 +348,7 @@ def renk_tahmin_et(fotograf):
 
 
 # ---------------------------------------------------------
-# TARZ VE RENK UYUMU
+# TARZ PUANLAMA
 # ---------------------------------------------------------
 
 NÖTR = {
@@ -250,7 +371,6 @@ def renk_uyum_puani(renk1, renk2):
     r1 = renk_listesi(renk1)
     r2 = renk_listesi(renk2)
 
-    # Renklerden biri bilinmiyorsa parçayı otomatik eleme.
     if not r1 or not r2:
         return 1
 
@@ -272,111 +392,130 @@ def renk_uyum_puani(renk1, renk2):
     return 0
 
 
-def dosya_adi(kayit):
-    return str(kayit.get("dosya_adi", "")).lower()
-
-
 def tarz_puani(kayit, tarz):
-    """
-    Dosya adındaki kelimeler ve kıyafet türü üzerinden
-    tarza uygunluk için yaklaşık puan üretir.
-    """
-
     tur = tur_al(kayit)
+    alt = alt_tur_al(kayit).lower()
     ad = dosya_adi(kayit)
+    metin = alt + " " + ad
     puan = 0
 
     if tarz == "Günlük":
-        kelimeler = [
-            "basic", "jean", "kot", "tişört", "tisort",
-            "sweat", "günlük", "gunluk", "spor ayakkabı"
-        ]
-
-        puan += sum(2 for kelime in kelimeler if kelime in ad)
-
-        if tur in ["Üst giyim", "Alt giyim", "Ayakkabı"]:
+        if tur in ["Üst giyim", "Alt giyim"]:
+            puan += 3
+        if tur == "Ayakkabı":
             puan += 2
 
-        if tur == "Elbise" and "günlük" not in ad and "gunluk" not in ad:
-            puan -= 1
+        if any(k in metin for k in [
+            "günlük", "gunluk", "kot", "jean", "tişört",
+            "tisort", "sneaker", "babet", "basic", "casual"
+        ]):
+            puan += 5
+
+        if any(k in metin for k in [
+            "abiye", "topuklu", "eşofman", "esofman"
+        ]):
+            puan -= 3
 
     elif tarz == "Spor":
-        kelimeler = [
-            "spor", "sneaker", "eşofman", "esofman", "sweat",
-            "hoodie", "tayt", "koşu", "kosu", "antrenman"
-        ]
+        if alt in ["tayt", "spor tayt", "eşofman altı", "spor şort"]:
+            puan += 12
+        if alt in ["spor üst", "sweatshirt", "hoodie"]:
+            puan += 8
+        if alt in ["spor ayakkabı", "sneaker", "spor çanta", "spor ceket"]:
+            puan += 12
 
-        puan += sum(3 for kelime in kelimeler if kelime in ad)
-
-        if tur == "Ayakkabı":
-            puan += 5
-        elif tur in ["Üst giyim", "Alt giyim"]:
+        if tur in ["Üst giyim", "Alt giyim"]:
             puan += 2
 
-        if any(k in ad for k in ["topuklu", "klasik", "abiye"]):
-            puan -= 4
+        if any(k in metin for k in [
+            "spor", "sneaker", "eşofman", "esofman",
+            "tayt", "koşu", "kosu", "antrenman",
+            "hoodie", "gym", "running"
+        ]):
+            puan += 6
+
+        if alt in ["topuklu ayakkabı", "şık elbise", "abiye", "blazer ceket"]:
+            puan -= 12
+
+        if any(k in metin for k in ["topuklu", "abiye", "klasik"]):
+            puan -= 5
 
     elif tarz == "Şık":
-        kelimeler = [
+        if alt in ["şık elbise", "abiye"]:
+            puan += 18
+        elif alt in ["topuklu ayakkabı", "şık çanta", "blazer ceket"]:
+            puan += 14
+        elif alt in ["kumaş pantolon", "gömlek", "bluz", "etek", "loafer"]:
+            puan += 8
+        elif alt in ["kot pantolon", "eşofman altı", "spor tayt"]:
+            puan -= 8
+
+        if tur == "Elbise":
+            puan += 5
+        elif tur == "Dış giyim":
+            puan += 3
+        elif tur in ["Çanta", "Ayakkabı"]:
+            puan += 2
+
+        if any(k in metin for k in [
             "blazer", "topuklu", "gömlek", "gomlek",
             "klasik", "loafer", "abiye", "şık", "sik",
-            "ceket", "etek"
-        ]
+            "etek", "kumaş", "kumas", "elegant", "formal"
+        ]):
+            puan += 6
 
-        puan += sum(3 for kelime in kelimeler if kelime in ad)
-
-        if tur == "Dış giyim":
-            puan += 3
-        elif tur == "Çanta":
-            puan += 2
-        elif tur == "Ayakkabı":
-            puan += 2
-        elif tur == "Elbise":
-            puan += 2
-
-        if any(k in ad for k in ["eşofman", "esofman", "koşu", "kosu"]):
-            puan -= 4
+        if any(k in metin for k in [
+            "eşofman", "esofman", "koşu", "kosu", "gym"
+        ]):
+            puan -= 8
 
     return puan
 
 
 def temel_kombin_puani(temel, tarz):
+    turler = [tur_al(p) for p in temel]
+    altlar = [alt_tur_al(p).lower() for p in temel]
+
     puan = sum(tarz_puani(p, tarz) for p in temel)
 
     renkler = [renk_al(p) for p in temel]
-
     for i in range(len(renkler)):
         for j in range(i + 1, len(renkler)):
             puan += renk_uyum_puani(renkler[i], renkler[j])
 
-    turler = [tur_al(p) for p in temel]
-
-    # Üst + alt kombinini günlük ve spor tarzında öne çıkar.
     if "Üst giyim" in turler and "Alt giyim" in turler:
-        if tarz in ["Günlük", "Spor"]:
-            puan += 8
-        else:
-            puan += 5
+        puan += 8
 
-    # Elbise, üst-alt kombini mevcutsa varsayılan olarak öne geçmesin.
-    if "Elbise" in turler:
-        puan -= 3
+    if tarz == "Şık":
+        if "Elbise" in turler:
+            puan += 18
+        if any(x in ["şık elbise", "abiye"] for x in altlar):
+            puan += 10
+
+    elif tarz == "Spor":
+        if "Üst giyim" in turler and "Alt giyim" in turler:
+            puan += 10
+        if any(x in ["tayt", "spor tayt", "eşofman altı"] for x in altlar):
+            puan += 14
+        if "Elbise" in turler:
+            puan -= 12
+
+    elif tarz == "Günlük":
+        if "Üst giyim" in turler and "Alt giyim" in turler:
+            puan += 10
 
     return puan
 
 
 def en_iyi_aday(adaylar, puan_fonksiyonu):
-    """
-    En yüksek puanlı adaylar arasından seçim yapar.
-    Böylece puanları eşit olan kayıtlarda hep ilk fotoğraf seçilmez.
-    """
-
     if not adaylar:
         return None
 
     puanli = [(puan_fonksiyonu(a), a) for a in adaylar]
     en_yuksek = max(p for p, _ in puanli)
 
+    # Birbirine yakın puanlı adaylar arasından seçim yaparak
+    # her defasında aynı fotoğrafın seçilmesini azalt.
     en_iyiler = [
         a for p, a in puanli
         if p >= en_yuksek - 2
@@ -386,7 +525,7 @@ def en_iyi_aday(adaylar, puan_fonksiyonu):
 
 
 # ---------------------------------------------------------
-# KOMBIN SEÇİMİ
+# KOMBİN OLUŞTURMA
 # ---------------------------------------------------------
 
 def kombin_olustur(dolap, tarz):
@@ -404,37 +543,24 @@ def kombin_olustur(dolap, tarz):
     cantalar = [p for p in gecerli if tur_al(p) == "Çanta"]
     aksesuarlar = [p for p in gecerli if tur_al(p) == "Aksesuar"]
 
-    # Öncelik: üst giyim + alt giyim.
     temel_adaylari = []
 
-    if ustler and altlar:
-        for ust in ustler:
-            for alt in altlar:
-                temel_adaylari.append([ust, alt])
+    # Üst-alt seçenekleri oluştur.
+    for ust in ustler:
+        for alt in altlar:
+            temel_adaylari.append([ust, alt])
 
-    # Elbiseyi ancak üst-alt kombinine alternatif olarak ekle.
-    # Üst ve alt varsa günlük/spor için öncelik ikili kombindedir.
-    if elbiseler and not (ustler and altlar):
+    # Elbiseyi özellikle şık tarzda güçlü bir alternatif yap.
+    # Diğer tarzlarda da dolapta üst-alt yoksa kullan.
+    if tarz == "Şık" or not (ustler and altlar):
         for elbise in elbiseler:
             temel_adaylari.append([elbise])
 
-    # Hiç üst-alt ikilisi veya elbise yoksa açıklama ver.
     if not temel_adaylari:
-        if not ustler and not elbiseler:
-            return [], (
-                "Tam kombin oluşturabilmem için dolabına üst giyim "
-                "veya elbise eklemelisin."
-            )
-
-        if not altlar and not elbiseler:
-            return [], (
-                "Tam kombin oluşturabilmem için dolabına pantolon, "
-                "etek veya elbise eklemelisin."
-            )
-
         return [], (
-            "Dolabında henüz tamamlanmış bir kombin için yeterli "
-            "temel parça yok. Üst giyim + alt giyim veya elbise ekle."
+            "Tam kombin oluşturabilmem için dolabında üst giyim + "
+            "alt giyim veya elbise bulunmalı. Dolabım bölümünden "
+            "kıyafet türlerini kontrol edebilirsin."
         )
 
     temel = en_iyi_aday(
@@ -444,8 +570,8 @@ def kombin_olustur(dolap, tarz):
 
     sonuc = list(temel)
 
-    # Tamamlayıcıları tek tek seç.
-    # Renk uyumu yardımcı ölçüttür; tek başına kıyafeti elemez.
+    # Tarza uygun tamamlayıcıları önceliklendir.
+    # Her kategoriden en fazla bir parça eklenir.
     gruplar = [
         dislar,
         ayakkabilar,
@@ -454,7 +580,9 @@ def kombin_olustur(dolap, tarz):
     ]
 
     for grup in gruplar:
-        if not grup:
+        adaylar = [p for p in grup if p not in sonuc]
+
+        if not adaylar:
             continue
 
         def tamamlayici_puani(parca):
@@ -468,19 +596,17 @@ def kombin_olustur(dolap, tarz):
 
             return puan
 
-        secilen = en_iyi_aday(
-            [p for p in grup if p not in sonuc],
-            tamamlayici_puani
-        )
+        secilen = en_iyi_aday(adaylar, tamamlayici_puani)
 
         if secilen is not None:
             sonuc.append(secilen)
 
-    return sonuc, aciklama_olustur(sonuc, tarz)
+    return sonuc, aciklama_olustur(sonuc, tarz, gecerli)
 
 
-def aciklama_olustur(kombin, tarz):
+def aciklama_olustur(kombin, tarz, dolap):
     turler = [tur_al(p) for p in kombin]
+    altlar = [alt_tur_al(p) for p in kombin]
 
     renkler = list(dict.fromkeys(
         renk_al(p)
@@ -488,48 +614,76 @@ def aciklama_olustur(kombin, tarz):
         if renk_al(p) != "Bilinmiyor"
     ))
 
-    metin = f"**Seçilen tarz: {tarz}.** "
+    if tarz == "Şık":
+        metin = "**Seçilen tarz: Şık.** Şık parçaları önceliklendirdim."
+    elif tarz == "Spor":
+        metin = "**Seçilen tarz: Spor.** Spor parçalarını önceliklendirdim."
+    else:
+        metin = "**Seçilen tarz: Günlük.** Günlük kullanıma uygun parçaları önceliklendirdim."
 
     if "Üst giyim" in turler and "Alt giyim" in turler:
-        metin += (
-            "Üst giyim ve alt giyimi temel alarak kombini oluşturdum."
-        )
+        metin += " Üst ve alt giyim birlikte seçildi."
     elif "Elbise" in turler:
-        metin += (
-            "Dolabında uygun üst-alt ikilisi bulunmadığı için "
-            "elbise üzerinden bir kombin oluşturdum."
-        )
-    else:
-        metin += "Dolabındaki temel parçaları bir araya getirdim."
+        metin += " Elbise kombinin ana parçası olarak seçildi."
+
+    secili_altlar = [x for x in altlar if x]
+    if secili_altlar:
+        metin += " Seçilen alt türler: " + ", ".join(secili_altlar) + "."
 
     if renkler:
         metin += " Renkler: " + ", ".join(renkler) + "."
 
     eksikler = []
 
-    if "Dış giyim" not in turler:
-        eksikler.append("ceket veya hırka")
+    if not any(tur_al(p) == "Dış giyim" for p in kombin):
+        if any(tur_al(p) == "Dış giyim" for p in dolap):
+            eksikler.append("dış giyim seçilmedi")
+        else:
+            eksikler.append("ceket veya hırka")
 
-    if "Ayakkabı" not in turler:
+    if not any(tur_al(p) == "Ayakkabı" for p in kombin):
         eksikler.append("ayakkabı")
 
-    if "Çanta" not in turler:
+    if not any(tur_al(p) == "Çanta" for p in kombin):
         eksikler.append("çanta")
 
-    if "Aksesuar" not in turler:
+    if not any(tur_al(p) == "Aksesuar" for p in kombin):
         eksikler.append("takı veya kemer")
 
     if eksikler:
         metin += (
-            "\n\n**Dolabında bulunmadığı için kolaja eklenemeyen "
-            "tamamlayıcılar:** " + ", ".join(eksikler) + "."
+            "\n\n**Eksik tamamlayıcılar:** "
+            + ", ".join(eksikler)
+            + ". Bunlar kolajda varmış gibi gösterilmedi."
         )
+
+    # Seçilen tarzda özel bir alt tür yoksa kullanıcıyı bilgilendir.
+    if tarz == "Şık":
+        if not any(
+            alt_tur_al(p) == "Topuklu ayakkabı"
+            for p in dolap
+        ) and any(tur_al(p) == "Ayakkabı" for p in dolap):
+            metin += (
+                "\n\nDolabında topuklu ayakkabı kayıtlı değil; "
+                "mevcut ayakkabılardan biri seçildi."
+            )
+
+    if tarz == "Spor":
+        if not any(
+            alt_tur_al(p) in ["Tayt", "Spor tayt", "Eşofman altı"]
+            for p in dolap
+        ) and any(tur_al(p) == "Alt giyim" for p in dolap):
+            metin += (
+                "\n\nDolabında tayt veya eşofman altı olarak "
+                "işaretlenmiş bir kayıt bulunmuyor. Alt giyim "
+                "seçimini Dolabım bölümünden kontrol edebilirsin."
+            )
 
     return metin
 
 
 # ---------------------------------------------------------
-# TEK KARELİK KOLAJ
+# KOLAJ
 # ---------------------------------------------------------
 
 def kolaj_olustur(kombin, boyut=1000):
@@ -566,7 +720,6 @@ def kolaj_olustur(kombin, boyut=1000):
 
     for i, parca in enumerate(kombin):
         fotograf = fotograf_ac(parca)
-
         if fotograf is None:
             continue
 
@@ -601,7 +754,9 @@ def kolaj_olustur(kombin, boyut=1000):
 
         tuval.paste(fotograf, (px, py))
 
-        etiket = f"{tur_al(parca)} • {renk_al(parca)}"
+        alt = alt_tur_al(parca)
+        etiket_turu = f"{tur_al(parca)} ({alt})" if alt else tur_al(parca)
+        etiket = f"{etiket_turu} • {renk_al(parca)}"
 
         cizim.text(
             (x + hucre_w // 2, y + hucre_h - 28),
@@ -650,50 +805,83 @@ if sayfa == "Kıyafet Ekle":
             st.image(fotograf, width=300)
 
             if st.button("🤖 Kıyafeti analiz et", type="primary"):
-                with st.spinner("Analiz ediliyor..."):
-                    tahmin_turu = tur_tahmin_et(fotograf)
+                with st.spinner(
+                    "Kıyafetin türü ve rengi analiz ediliyor..."
+                ):
+                    tahmin_turu, tahmin_alt = tur_tahmin_et(fotograf)
                     tahmin_renk = renk_tahmin_et(fotograf)
 
                 st.session_state["gecici_resim"] = fotograf_base64(fotograf)
+                st.session_state["gecici_dosya"] = yuklenen.name
                 st.session_state["gecici_tur"] = tahmin_turu or "Üst giyim"
-                st.session_state["gecici_renk"] = (
-                    tahmin_renk
-                    if tahmin_renk in RENKLER
-                    else "Bilinmiyor"
-                )
+                st.session_state["gecici_alt"] = tahmin_alt or ""
+                st.session_state["gecici_renk"] = tahmin_renk
                 st.session_state["analiz_ok"] = True
 
+                # Önceki analizden kalmış seçimleri yenile.
+                st.session_state["ekle_tur"] = tahmin_turu or "Üst giyim"
+                st.session_state["ekle_alt"] = tahmin_alt or ""
+                st.session_state["ekle_renk"] = tahmin_renk
+
             if st.session_state.get("analiz_ok"):
+                st.info(
+                    "Yapay zekâ tahmin yaptı. Kaydetmeden önce "
+                    "tür ve renk alanlarını kontrol edebilirsin."
+                )
+
                 varsayilan_tur = st.session_state.get(
                     "gecici_tur", "Üst giyim"
                 )
-                varsayilan_renk = st.session_state.get(
-                    "gecici_renk", "Bilinmiyor"
-                )
 
                 tur = st.selectbox(
-                    "Kıyafet türünü kontrol et",
+                    "Kıyafet türü",
                     TURLER,
+                    key="ekle_tur",
                     index=(
                         TURLER.index(varsayilan_tur)
                         if varsayilan_tur in TURLER else 0
                     )
                 )
 
-                renk = st.selectbox(
-                    "Rengini kontrol et",
-                    RENKLER,
-                    index=(
-                        RENKLER.index(varsayilan_renk)
-                        if varsayilan_renk in RENKLER
-                        else len(RENKLER) - 1
+                alt_secenekler = ALT_TURLER[tur]
+                tahmin_alt = st.session_state.get("gecici_alt", "")
+
+                if st.session_state.get("ekle_alt") not in alt_secenekler:
+                    st.session_state["ekle_alt"] = (
+                        tahmin_alt if tahmin_alt in alt_secenekler
+                        else alt_secenekler[0]
                     )
+
+                alt_tur = st.selectbox(
+                    "Kıyafetin daha ayrıntılı türü",
+                    alt_secenekler,
+                    key="ekle_alt"
+                )
+
+                tahmin_renk = st.session_state.get(
+                    "gecici_renk", "Bilinmiyor"
+                )
+
+                renk_secenekleri = list(RENKLER)
+                if tahmin_renk not in renk_secenekleri:
+                    renk_secenekleri.insert(0, tahmin_renk)
+
+                if st.session_state.get("ekle_renk") not in renk_secenekleri:
+                    st.session_state["ekle_renk"] = tahmin_renk
+
+                renk = st.selectbox(
+                    "Renk",
+                    renk_secenekleri,
+                    key="ekle_renk"
                 )
 
                 if st.button("➕ Dolabıma kaydet", type="primary"):
                     dolap.append({
-                        "dosya_adi": yuklenen.name,
+                        "dosya_adi": st.session_state.get(
+                            "gecici_dosya", yuklenen.name
+                        ),
                         "tur": tur,
+                        "alt_tur": alt_tur,
                         "renk": renk,
                         "resim": st.session_state["gecici_resim"],
                         "eklenme_tarihi": datetime.now().isoformat(
@@ -703,7 +891,12 @@ if sayfa == "Kıyafet Ekle":
 
                     if dolabi_kaydet(dolap):
                         st.session_state["analiz_ok"] = False
-                        st.session_state.pop("gecici_resim", None)
+                        for anahtar in [
+                            "gecici_resim", "gecici_dosya",
+                            "gecici_tur", "gecici_alt", "gecici_renk"
+                        ]:
+                            st.session_state.pop(anahtar, None)
+
                         st.success("Kıyafet kaydedildi!")
                         st.rerun()
 
@@ -719,11 +912,13 @@ elif sayfa == "Dolabım":
     st.header("🧥 Dolabım")
 
     if not dolap:
-        st.info(
-            "Dolabın boş. Kıyafet Ekle bölümünden başlayabilirsin."
-        )
+        st.info("Dolabın boş. Kıyafet Ekle bölümünden başlayabilirsin.")
     else:
         st.write(f"Toplam kayıt: **{len(dolap)}**")
+        st.caption(
+            "Eski kıyafetlerin korunur. Alt tür alanı, kayıtlarını "
+            "düzenledikçe eklenir."
+        )
 
         filtre = st.selectbox("Tür filtresi", ["Tümü"] + TURLER)
 
@@ -741,12 +936,8 @@ elif sayfa == "Dolabım":
 
                 with sol:
                     fotograf = fotograf_ac(parca)
-
                     if fotograf:
-                        st.image(
-                            fotograf,
-                            use_container_width=True
-                        )
+                        st.image(fotograf, use_container_width=True)
 
                 with sag:
                     st.write(
@@ -754,8 +945,6 @@ elif sayfa == "Dolabım":
                     )
 
                     eski_tur = tur_al(parca)
-                    eski_renk = renk_al(parca)
-
                     yeni_tur = st.selectbox(
                         "Tür",
                         TURLER,
@@ -763,6 +952,23 @@ elif sayfa == "Dolabım":
                         key=f"tur_{i}"
                     )
 
+                    alt_secenekler = ALT_TURLER[yeni_tur]
+                    eski_alt = alt_tur_al(parca)
+
+                    alt_key = f"alt_{i}_{yeni_tur}"
+                    if st.session_state.get(alt_key) not in alt_secenekler:
+                        st.session_state[alt_key] = (
+                            eski_alt if eski_alt in alt_secenekler
+                            else alt_secenekler[0]
+                        )
+
+                    yeni_alt = st.selectbox(
+                        "Ayrıntılı tür",
+                        alt_secenekler,
+                        key=alt_key
+                    )
+
+                    eski_renk = renk_al(parca)
                     renk_secenekleri = list(RENKLER)
 
                     if eski_renk not in renk_secenekleri:
@@ -780,6 +986,7 @@ elif sayfa == "Dolabım":
                     with c1:
                         if st.button("💾 Kaydet", key=f"kaydet_{i}"):
                             dolap[i]["tur"] = yeni_tur
+                            dolap[i]["alt_tur"] = yeni_alt
                             dolap[i]["renk"] = yeni_renk
 
                             if dolabi_kaydet(dolap):
@@ -797,7 +1004,6 @@ elif sayfa == "Dolabım":
                         with a:
                             if st.button("Evet, sil", key=f"evet_{i}"):
                                 dolap.pop(i)
-
                                 if dolabi_kaydet(dolap):
                                     st.session_state.pop("sil_onay", None)
                                     st.rerun()
@@ -814,7 +1020,7 @@ elif sayfa == "Dolabım":
 
 elif sayfa == "Kombin Öner":
     st.header("✨ Tarzını seç")
-    st.write("Nasıl bir kombin istiyorsun? Bir tarza tıkla.")
+    st.write("Seçtiğin tarza göre dolabındaki parçalar puanlanır.")
 
     c1, c2, c3 = st.columns(3)
 
@@ -845,12 +1051,8 @@ elif sayfa == "Kombin Öner":
     if not dolap:
         st.info("Önce dolabına kıyafet eklemelisin.")
     else:
-        if st.button(
-            "✨ Bu tarza göre kombin oluştur",
-            type="primary"
-        ):
+        if st.button("✨ Bu tarza göre kombin oluştur", type="primary"):
             kombin, aciklama = kombin_olustur(dolap, tarz)
-
             st.session_state["son_kombin"] = kombin
             st.session_state["son_aciklama"] = aciklama
             st.session_state["son_tarz"] = tarz
@@ -890,8 +1092,10 @@ elif sayfa == "Kombin Öner":
                 st.subheader("👚 Kombindeki gerçek parçalar")
 
                 for parca in kombin:
+                    alt = alt_tur_al(parca)
+                    detay = f" — {alt}" if alt else ""
                     st.write(
-                        f"- **{tur_al(parca)}** — {renk_al(parca)}"
+                        f"- **{tur_al(parca)}{detay}** — {renk_al(parca)}"
                     )
 
         elif aciklama:
