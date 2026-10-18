@@ -6,16 +6,12 @@
 
 ## 📌 Proje Hakkında
 
-**Akıllı Dolabım**, kullanıcıların kıyafet fotoğraflarını yükleyerek dijital bir gardırop oluşturmasını ve yapay zekâ destekli kombin önerileri almasını amaçlayan bir Python projesidir.
+Akıllı Dolabım, kullanıcıların kıyafet fotoğraflarını yükleyerek dijital gardırop oluşturmalarını ve yapay zekâ destekli kombin önerileri almalarını amaçlayan bir Python projesidir.
 
-Uygulama; görüntü işleme, yapay zekâ modelleri ve hava durumu verilerinden yararlanarak kıyafetleri tanımayı, renklerini analiz etmeyi ve farklı tarzlara uygun kombinler oluşturmayı hedefler.
-
-## 🎯 Projenin Amacı
-
-Projenin temel amacı, günlük kıyafet seçimini kolaylaştırmak ve yapay zekâ teknolojilerini günlük yaşamda kullanılabilecek bir uygulamaya dönüştürmektir.
+## 🎯 Projenin Amaçları
 
 - Kıyafetleri dijital ortamda saklamak
-- Kıyafet türlerini yapay zekâ yardımıyla belirlemek
+- Yapay zekâ ile kıyafet türlerini tanımak
 - Kıyafet renklerini analiz etmek
 - Hava durumuna uygun kombinler önermek
 - Gardırop yönetimini kolaylaştırmak
@@ -23,29 +19,16 @@ Projenin temel amacı, günlük kıyafet seçimini kolaylaştırmak ve yapay zek
 ## ✨ Proje Özellikleri
 
 ### 👚 Dijital Gardırop
-
-- Fotoğraf yükleyerek kıyafet ekleme
-- Kıyafetleri galeri görünümünde görüntüleme
-- Kıyafet bilgilerini düzenleme ve kayıtları silme
-- Kıyafetleri türlerine göre sınıflandırma
+Kıyafet fotoğrafları eklenebilir, görüntülenebilir, düzenlenebilir ve silinebilir.
 
 ### 🤖 Yapay Zekâ ile Kıyafet Tanıma
-
-Hugging Face Transformers kütüphanesi aracılığıyla kullanılan CLIP modeli, kıyafet görsellerini belirlenen kategorilerle karşılaştırarak sınıflandırma yapılmasına yardımcı olur.
+CLIP modeli kullanılarak kıyafet görsellerinin kategorilerinin belirlenmesi hedeflenir.
 
 ### 🎨 Renk Algılama
+Görüntü işleme yöntemleriyle kıyafet renkleri analiz edilir. Pembe-siyah gibi iki renkli ürünler de desteklenebilir.
 
-Görüntü işleme yöntemleriyle kıyafet renkleri analiz edilir. Pembe-siyah gibi iki renkli ürünlerin daha doğru tanımlanması hedeflenir.
-
-### 🌦️ Hava Durumuna Göre Kombin Önerileri
-
-Open-Meteo hava durumu verileri kullanılarak hava koşullarına uygun kıyafet ve kombin önerileri oluşturulması amaçlanır.
-
-### 👗 Farklı Kombin Tarzları
-
-- Günlük
-- Spor
-- Şık
+### 🌦️ Hava Durumuna Göre Kombin
+Open-Meteo verilerinden yararlanılarak günlük, spor ve şık kombin önerileri oluşturulur.
 
 ## 🛠️ Kullanılan Teknolojiler
 
@@ -53,12 +36,12 @@ Open-Meteo hava durumu verileri kullanılarak hava koşullarına uygun kıyafet 
 | --- | --- |
 | Python | Uygulama geliştirme |
 | Streamlit | Web arayüzü |
-| Hugging Face Transformers | Yapay zekâ modelleri |
+| Transformers | Yapay zekâ modelleri |
 | CLIP | Görsel sınıflandırma |
 | SegFormer | Görüntü segmentasyonu |
-| Pillow (PIL) | Görüntü işleme |
+| Pillow | Görüntü işleme |
 | Open-Meteo | Hava durumu verileri |
-| JSON | Gardırop kayıtlarının saklanması |
+| JSON | Gardırop verileri |
 
 ## 📁 Proje Dosya Yapısı
 
@@ -69,15 +52,7 @@ akilli_dolabim/
 └── README.md
 ```
 
-### Dosyaların Açıklamaları
-
-- **app.py:** Uygulamanın arayüzünü ve temel işlevlerini içerir.
-- **requirements.txt:** Projenin çalışması için gereken Python kütüphanelerini listeler.
-- **README.md:** Projenin açıklamasını ve kurulum adımlarını içerir.
-
 ## ⚙️ Kurulum ve Çalıştırma
-
-Projeyi bilgisayarınızda çalıştırmak için aşağıdaki adımları izleyebilirsiniz.
 
 ### 1. Depoyu indirin
 
@@ -91,7 +66,7 @@ git clone https://github.com/hazallguc/akilli_dolabim.git
 cd akilli_dolabim
 ```
 
-### 3. Gerekli kütüphaneleri yükleyin
+### 3. Kütüphaneleri yükleyin
 
 ```bash
 pip install -r requirements.txt
@@ -103,33 +78,21 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-Komut çalıştırıldıktan sonra uygulama, Streamlit tarafından sağlanan yerel web adresinde açılır.
-
-## 🧠 Yapay Zekâ Modelleri
-
-Projede kullanılan temel modeller şunlardır:
-
-- **CLIP — `openai/clip-vit-base-patch32`:** Görselleri metin açıklamalarıyla karşılaştırarak sınıflandırma yapılmasına yardımcı olur.
-- **SegFormer — `mattmdjaga/segformer_b2_clothes`:** Görüntüdeki kıyafet bölgelerinin belirlenmesi ve ayrıştırılması için kullanılır.
-
-Model sonuçları fotoğrafın kalitesine, ışık koşullarına ve kıyafetin görünürlüğüne göre değişebilir.
-
 ## 🚀 Geliştirme Hedefleri
 
-- Kıyafet tanıma ve renk algılama doğruluğunu artırmak
-- Yeni kıyafet kategorileri eklemek
-- Kullanıcıya özel gardırop kayıtları oluşturmak
-- Verileri güvenli ve kalıcı biçimde saklamak
-- Kombin önerilerini kişiselleştirmek
-- Uygulamayı çevrim içi erişime açmak
+- Kıyafet tanıma doğruluğunu artırmak
+- Daha fazla kıyafet kategorisi eklemek
+- Kullanıcıya özel gardırop oluşturmak
+- Güvenli ve kalıcı veri saklama sağlamak
+- Kombin önerilerini geliştirmek
 
 ## 👩‍💻 Geliştirici
 
 **Hazal Güç**
 
-GitHub profili: [hazallguc](https://github.com/hazallguc)
+[GitHub Profilim](https://github.com/hazallguc)
 
-Proje deposu: [Akıllı Dolabım](https://github.com/hazallguc/akilli_dolabim)
+[Akıllı Dolabım Proje Deposu](https://github.com/hazallguc/akilli_dolabim)
 
 ---
 
