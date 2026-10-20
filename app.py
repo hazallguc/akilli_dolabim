@@ -13,6 +13,7 @@ from collections import Counter
 from itertools import product
 
 st.set_page_config(page_title="Akıllı Dolabım", page_icon="👗", layout="wide")
+
 st.title("👗 Akıllı Dolabım")
 st.caption("Yapay zekâ destekli kişisel kıyafet dolabın.")
 
@@ -28,7 +29,9 @@ ALT_TURLER = {
     "Aksesuar": ["Takı", "Kemer", "Şapka", "Atkı", "Gözlük", "Diğer aksesuar"],
     "Diğer": ["Diğer"]
 }
+
 TURLER = list(ALT_TURLER.keys())
+
 RENKLER = [
     "Siyah", "Beyaz", "Gri", "Kırmızı", "Bordo", "Pembe",
     "Pembe-Siyah", "Mavi", "Lacivert", "Yeşil", "Sarı",
@@ -36,61 +39,89 @@ RENKLER = [
     "Çok renkli", "Bilinmiyor"
 ]
 
-# CLIP'e gösterilen adaylar; ana tür ve alt tür birlikte tahmin edilir.
-MODEL_ADAYLARI = [
-    ("Üst giyim", "Tişört", "a short sleeve casual t shirt"),
-    ("Üst giyim", "Bluz", "a women's blouse"),
-    ("Üst giyim", "Gömlek", "a button up shirt"),
-    ("Üst giyim", "Crop top", "a cropped top"),
-    ("Üst giyim", "Sweatshirt", "a crewneck sweatshirt"),
-    ("Üst giyim", "Hoodie", "a hooded sweatshirt"),
-    ("Üst giyim", "Kazak", "a knitted sweater"),
-    ("Üst giyim", "Spor üst", "an athletic sports top"),
-    ("Üst giyim", "Body", "a fitted bodysuit"),
-    ("Üst giyim", "Diğer üst giyim", "another type of upper body clothing"),
-    ("Alt giyim", "Jean", "a pair of denim jeans"),
-    ("Alt giyim", "Kumaş pantolon", "a pair of tailored fabric trousers"),
-    ("Alt giyim", "Eşofman altı", "a pair of sweatpants"),
-    ("Alt giyim", "Tayt", "a pair of casual leggings"),
-    ("Alt giyim", "Spor tayt", "a pair of athletic leggings"),
-    ("Alt giyim", "Etek", "a skirt"),
-    ("Alt giyim", "Şort", "a pair of casual shorts"),
-    ("Alt giyim", "Spor şort", "a pair of athletic shorts"),
-    ("Alt giyim", "Diğer alt giyim", "another type of lower body clothing"),
-    ("Elbise", "Günlük elbise", "a casual everyday dress"),
-    ("Elbise", "Şık elbise", "an elegant formal dress"),
-    ("Elbise", "Abiye", "a long evening gown"),
-    ("Elbise", "Spor elbise", "a sporty athletic dress"),
-    ("Elbise", "Diğer elbise", "another style of dress"),
-    ("Dış giyim", "Blazer ceket", "a tailored blazer jacket"),
-    ("Dış giyim", "Günlük ceket", "a casual everyday jacket"),
-    ("Dış giyim", "Deri ceket", "a leather jacket"),
-    ("Dış giyim", "Kot ceket", "a denim jean jacket"),
-    ("Dış giyim", "Şişme mont", "a puffer jacket"),
-    ("Dış giyim", "Mont", "a warm winter jacket"),
-    ("Dış giyim", "Kaban", "a long wool coat"),
-    ("Dış giyim", "Hırka", "a knitted cardigan"),
-    ("Dış giyim", "Spor ceket", "an athletic track jacket"),
-    ("Dış giyim", "Diğer dış giyim", "another type of outerwear"),
-    ("Ayakkabı", "Spor ayakkabı", "athletic running shoes"),
-    ("Ayakkabı", "Sneaker", "casual fashion sneakers"),
-    ("Ayakkabı", "Topuklu ayakkabı", "high heel shoes"),
-    ("Ayakkabı", "Babet", "flat ballet shoes"),
-    ("Ayakkabı", "Loafer", "loafer shoes"),
-    ("Ayakkabı", "Bot", "ankle boots"),
-    ("Ayakkabı", "Sandalet", "sandals"),
-    ("Ayakkabı", "Klasik ayakkabı", "formal dress shoes"),
-    ("Ayakkabı", "Diğer ayakkabı", "another type of footwear"),
-    ("Çanta", "Günlük çanta", "an everyday handbag"),
-    ("Çanta", "Şık çanta", "an elegant evening handbag"),
-    ("Çanta", "Omuz çantası", "a shoulder bag"),
-    ("Çanta", "El çantası", "a small hand held handbag"),
-    ("Çanta", "Sırt çantası", "a backpack"),
-    ("Çanta", "Spor çanta", "a gym sports bag"),
-    ("Çanta", "Diğer çanta", "another type of bag"),
-    ("Aksesuar", "Takı", "jewelry"),
-    ("Aksesuar", "Kemer", "a belt"),
-    ("Aksesuar", "Şapka", "a hat"),
-    ("Aksesuar", "Atkı", "a scarf"),
-    ("Aksesuar", "Gözlük", "eyeglasses or sunglasses"),
-    ("Aksesuar", "Diğer aksesuar", "another fashion accessory"),
+MODEL_ETIKETLERI = {
+    "Üst giyim": ["a t-shirt", "a blouse", "a shirt", "a crop top", "a sweatshirt", "a hoodie", "a sweater", "a bodysuit"],
+    "Alt giyim": ["jeans", "dress pants", "sweatpants", "leggings", "a skirt", "shorts"],
+    "Elbise": ["a casual dress", "an elegant dress", "an evening gown", "a sports dress"],
+    "Dış giyim": ["a blazer", "a jacket", "a leather jacket", "a denim jacket", "a puffer jacket", "a coat", "a cardigan"],
+    "Ayakkabı": ["sneakers", "high heels", "flats", "loafers", "boots", "sandals", "dress shoes"],
+    "Çanta": ["a handbag", "a shoulder bag", "a backpack", "a sports bag"],
+    "Aksesuar": ["jewelry", "a belt", "a hat", "a scarf", "glasses"],
+    "Diğer": ["a clothing item", "an object"]
+}
+
+
+# ------------------------------
+# İSİM DÜZENLEME
+# ------------------------------
+
+def isim_dosya_adi_mi(isim):
+    isim = str(isim or "").strip().lower()
+    return isim.endswith((".jpg", ".jpeg", ".png", ".webp", ".jfif"))
+
+
+def dosya_adini_temizle(isim):
+    isim = os.path.basename(str(isim or ""))
+    isim = os.path.splitext(isim)[0]
+    isim = isim.replace("_", " ").replace("-", " ")
+    isim = re.sub(r"\s+", " ", isim).strip()
+    return isim
+
+
+def gorunen_kiyafet_ismi(kayit):
+    isim = str(kayit.get("isim", "") or "").strip()
+    alt_tur = str(kayit.get("alt_tur", "") or "").strip()
+    renk = str(kayit.get("renk", "") or "").strip()
+
+    # Eski kayıtlarda isim dosya adıysa, alt türü göster.
+    if not isim or isim_dosya_adi_mi(isim):
+        isim = alt_tur or kayit.get("tur", "Kıyafet")
+
+    # İsim yalnızca "çanta" gibi genel bir dosya ismiyse,
+    # mümkün olduğunda daha açıklayıcı alt türü göster.
+    temiz = dosya_adini_temizle(isim).lower()
+    if temiz in ["canta", "çanta", "ayakkabi", "ayakkabı", "kiyafet", "kıyafet", "resim", "image", "photo"]:
+        isim = alt_tur or kayit.get("tur", "Kıyafet")
+
+    # "Günlük Çanta" zaten renk içermiyorsa rengi de ekle.
+    isim_temiz = dosya_adini_temizle(isim).lower()
+    if renk and renk != "Bilinmiyor" and renk.lower() not in isim_temiz:
+        isim = f"{renk} {isim}"
+
+    return isim.strip().title()
+
+
+# ------------------------------
+# DOLAP KAYITLARI
+# ------------------------------
+
+def dolabi_yukle():
+    if not os.path.exists(DOSYA):
+        return []
+
+    try:
+        with open(DOSYA, "r", encoding="utf-8") as f:
+            veri = json.load(f)
+
+        if isinstance(veri, dict):
+            veri = veri.get("dolap", [])
+
+        if not isinstance(veri, list):
+            return []
+
+        for kayit in veri:
+            kayit.setdefault("tur", "Diğer")
+            kayit.setdefault("alt_tur", "Diğer")
+            kayit.setdefault("renk", "Bilinmiyor")
+            kayit.setdefault("resim", "")
+            kayit.setdefault("isim", kayit.get("alt_tur", "Kıyafet"))
+
+            # Eski kayıttaki dosya adını gerçek isim alanına yazma.
+            if isim_dosya_adi_mi(kayit.get("isim", "")):
+                kayit["isim"] = kayit.get("alt_tur", "Kıyafet")
+
+        return veri
+
+    except (json.JSONDecodeError, OSError):
+        st.error("dolap.json okunamadı. Dosyanın yedeğini kontrol et.")
+        return []
